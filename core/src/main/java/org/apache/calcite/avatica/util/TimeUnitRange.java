@@ -42,6 +42,7 @@ public enum TimeUnitRange {
   ISOYEAR(TimeUnit.ISOYEAR, null),
   QUARTER(TimeUnit.QUARTER, null),
   WEEK(TimeUnit.WEEK, null),
+  ISOWEEK(TimeUnit.ISOWEEK, null),
   MILLISECOND(TimeUnit.MILLISECOND, null),
   MICROSECOND(TimeUnit.MICROSECOND, null),
   NANOSECOND(TimeUnit.NANOSECOND, null),
