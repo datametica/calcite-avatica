@@ -25,7 +25,7 @@ import java.math.BigDecimal;
  * {@link #HOUR}, {@link #MINUTE}, {@link #SECOND} can be the unit of a SQL
  * interval.
  *
- * <p>The others ({@link #QUARTER}, {@link #WEEK}, {@link #MILLISECOND},
+ * <p>The others ({@link #QUARTER}, {@link #WEEK}, {@link #ISOWEEK}, {@link #MILLISECOND},
  * {@link #DOW}, {@link #DOY}, {@link #EPOCH}, {@link #DECADE}, {@link #CENTURY},
  * {@link #MILLENNIUM}, {@link #MICROSECOND}, {@link #NANOSECOND}, {@link #ISODOW}
  * and {@link #ISOYEAR}) are convenient to use internally,
@@ -47,6 +47,8 @@ public enum TimeUnit {
   QUARTER(true, '*', BigDecimal.valueOf(3) /* months */, BigDecimal.valueOf(4)),
   ISOYEAR(true, ' ', BigDecimal.valueOf(12) /* months */, null),
   WEEK(false, '*', BigDecimal.valueOf(DateTimeUtils.MILLIS_PER_DAY * 7),
+      BigDecimal.valueOf(53)),
+  ISOWEEK(false, '*', BigDecimal.valueOf(DateTimeUtils.MILLIS_PER_DAY * 7),
       BigDecimal.valueOf(53)),
   MILLISECOND(false, '.', BigDecimal.ONE, BigDecimal.valueOf(1000)),
   MICROSECOND(false, '.', BigDecimal.ONE.scaleByPowerOfTen(-3),
