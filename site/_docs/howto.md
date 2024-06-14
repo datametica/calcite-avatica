@@ -1,6 +1,6 @@
 ---
 layout: docs
-title: HOWTO
+title: Avatica HOWTO
 permalink: /docs/howto.html
 ---
 
@@ -31,7 +31,7 @@ Here's some miscellaneous documentation about using Avatica.
 ## Building from a source distribution
 
 Prerequisites are Java (JDK 8 or later)
-and Gradle (version 7.4.2) on your path.
+and Gradle (version 8.5) on your path.
 
 (The source distribution
 [does not include the Gradle wrapper](https://issues.apache.org/jira/browse/CALCITE-4575);
@@ -43,8 +43,8 @@ Unpack the source distribution `.tar.gz` file,
 then build using Gradle:
 
 {% highlight bash %}
-$ tar xvfz apache-calcite-avatica-1.23.0-src.tar.gz
-$ cd apache-calcite-avatica-1.23.0-src
+$ tar xvfz apache-calcite-avatica-1.25.0-src.tar.gz
+$ cd apache-calcite-avatica-1.25.0-src
 $ gradle build
 {% endhighlight %}
 
@@ -91,7 +91,7 @@ Prerequisites are [Docker](https://docs.docker.com/install/) and
 [Docker Compose](https://docs.docker.com/compose/install/).
 
 {% highlight bash %}
-docker-compose run test
+docker compose run test
 {% endhighlight %}
 
 ## Contributing
@@ -255,16 +255,16 @@ the script will make a copy of the contents and move it to a different location,
 
 {% highlight bash %}
 # On Linux (dry-run):
-docker-compose run -v ~/.gnupg:/.gnupg dry-run
+docker compose run -v ~/.gnupg:/.gnupg dry-run
 
 # On Windows (dry-run):
-docker-compose run -v /c/Users/username/AppData/Roaming/gnupg:/.gnupg dry-run
+docker compose run -v /c/Users/username/AppData/Roaming/gnupg:/.gnupg dry-run
 
 # On Linux (push to ASF servers):
-docker-compose run -v ~/.gnupg:/.gnupg publish-release-for-voting
+docker compose run -v ~/.gnupg:/.gnupg publish-release-for-voting
 
 # On Windows (push to ASF servers):
-docker-compose run -v /c/Users/username/AppData/Roaming/gnupg:/.gnupg publish-release-for-voting
+docker compose run -v /c/Users/username/AppData/Roaming/gnupg:/.gnupg publish-release-for-voting
 {% endhighlight %}
 
 ## Checking the artifacts
@@ -473,7 +473,7 @@ The old releases will remain available in the
 This assumes that a rc release was tagged and pushed to the git repository.
 
 {% highlight bash %}
-docker-compose run promote-release
+docker compose run promote-release
 {% endhighlight %}
 
 ## Add release notes and announce the release

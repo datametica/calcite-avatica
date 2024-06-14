@@ -16,6 +16,7 @@
  */
 package org.apache.calcite.avatica.util;
 
+import org.hamcrest.Matcher;
 import org.junit.Test;
 
 import java.math.BigDecimal;
@@ -789,12 +790,10 @@ public class DateTimeUtilsTest {
     checkDateString("0200-01-01", d200);
     final int d100 = d200 - century + 1;
     checkDateString("0100-01-01", d100);
-    final int d000 = d100 - century;
-    checkDateString("0000-01-01", d000);
   }
 
   @Test public void testDateConversion() {
-    for (int i = 0; i < 4000; ++i) {
+    for (int i = 1; i < 4000; ++i) {
       for (int j = 1; j <= 12; ++j) {
         String date = String.format(Locale.ENGLISH, "%04d-%02d-28", i, j);
         assertThat(unixDateToString(ymdToUnixDate(i, j, 28)), is(date));
@@ -882,13 +881,13 @@ public class DateTimeUtilsTest {
     assertThat((int) date, is(date1));
 
     assertThat(subtractMonths(date1, date0),
-        anyOf(is(months), is(months + 1)));
+        anyOf(is(months - 1), is(months), is(months + 1)));
     assertThat(subtractMonths(date1 + 1, date0),
         anyOf(is(months), is(months + 1)));
     assertThat(subtractMonths(date1, date0 + 1),
         anyOf(is(months), is(months - 1)));
     assertThat(subtractMonths(d2ts(date1, 1), d2ts(date0, 0)),
-        anyOf(is(months), is(months + 1)));
+        anyOf(is(months - 1), is(months), is(months + 1)));
     assertThat(subtractMonths(d2ts(date1, 0), d2ts(date0, 1)),
         anyOf(is(months - 1), is(months), is(months + 1)));
   }
@@ -897,6 +896,60 @@ public class DateTimeUtilsTest {
    * into a timestamp (milliseconds since epoch). */
   private long d2ts(int date, int millis) {
     return date * DateTimeUtils.MILLIS_PER_DAY + millis;
+  }
+
+  @Test public void testSubtractMonths() {
+    assertThat(subtractMonths(
+            ymdToUnixDate(2004, 9, 11),
+            ymdToUnixDate(2004, 9, 11)), is(0));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2005, 9, 11),
+            ymdToUnixDate(2004, 9, 11)), is(12));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2006, 9, 11),
+            ymdToUnixDate(2004, 9, 11)), is(24));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2007, 9, 11),
+            ymdToUnixDate(2004, 9, 11)), is(36));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2004, 9, 11),
+            ymdToUnixDate(2005, 9, 11)), is(-12));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2003, 9, 11),
+            ymdToUnixDate(2005, 9, 11)), is(-24));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2005, 2, 28),
+            ymdToUnixDate(2004, 2, 28)), is(12));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2005, 2, 28),
+            ymdToUnixDate(2004, 2, 29)), is(11));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2005, 2, 28),
+            ymdToUnixDate(2004, 2, 28)), is(12));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2005, 3, 28),
+            ymdToUnixDate(2004, 3, 29)), is(11));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2004, 2, 29),
+            ymdToUnixDate(2003, 2, 28)), is(12));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2005, 2, 28),
+            ymdToUnixDate(2003, 2, 28)), is(24));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2001, 10, 10),
+            ymdToUnixDate(1999, 9, 11)), is(24));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2001, 9, 11),
+            ymdToUnixDate(1999, 9, 11)), is(24));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2001, 5, 1),
+            ymdToUnixDate(2001, 2, 1)), is(3));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2000, 2, 29),
+            ymdToUnixDate(2000, 3, 28)), is(0));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2000, 2, 29),
+            ymdToUnixDate(1991, 3, 28)), is(107));
   }
 
   @Test public void testUnixTimestamp() {
@@ -1110,12 +1163,12 @@ public class DateTimeUtilsTest {
     assertThat(sqlDateToUnixDate(new java.sql.Date(utcCal.getTimeInMillis()), utcCal), is(0));
 
     final TimeZone minusDayZone = TimeZone.getDefault();
-    minusDayZone.setRawOffset((int) (minusDayZone.getOffset(0L) - MILLIS_PER_DAY));
+    minusDayZone.setRawOffset((int) (minusDayZone.getRawOffset() - MILLIS_PER_DAY));
     final Calendar minusDayCal = Calendar.getInstance(minusDayZone, Locale.ROOT);
     assertThat(sqlDateToUnixDate(epoch, minusDayCal), is(-1));
 
     final TimeZone plusDayZone = TimeZone.getDefault();
-    plusDayZone.setRawOffset((int) (plusDayZone.getOffset(0L) + MILLIS_PER_DAY));
+    plusDayZone.setRawOffset((int) (plusDayZone.getRawOffset() + MILLIS_PER_DAY));
     final Calendar plusDayCal = Calendar.getInstance(plusDayZone, Locale.ROOT);
     assertThat(sqlDateToUnixDate(epoch, plusDayCal), is(1));
   }
@@ -1358,12 +1411,12 @@ public class DateTimeUtilsTest {
     assertThat(sqlTimeToUnixTime(new Time(utcCal.getTimeInMillis()), utcCal), is(0));
 
     final TimeZone minusFiveZone = TimeZone.getDefault();
-    minusFiveZone.setRawOffset((int) (minusFiveZone.getOffset(0L) - 5 * MILLIS_PER_HOUR));
+    minusFiveZone.setRawOffset((int) (minusFiveZone.getRawOffset() - 5 * MILLIS_PER_HOUR));
     final Calendar minusFiveCal = Calendar.getInstance(minusFiveZone, Locale.ROOT);
     assertEquals(19 * MILLIS_PER_HOUR, sqlTimeToUnixTime(epoch, minusFiveCal));
 
     final TimeZone plusFiveZone = TimeZone.getDefault();
-    plusFiveZone.setRawOffset((int) (plusFiveZone.getOffset(0L) + 5 * MILLIS_PER_HOUR));
+    plusFiveZone.setRawOffset((int) (plusFiveZone.getRawOffset() + 5 * MILLIS_PER_HOUR));
     final Calendar plusFiveCal = Calendar.getInstance(plusFiveZone, Locale.ROOT);
     assertEquals(5 * MILLIS_PER_HOUR, sqlTimeToUnixTime(epoch, plusFiveCal));
   }
@@ -1399,12 +1452,12 @@ public class DateTimeUtilsTest {
     assertThat(unixTimeToSqlTime(0, utcCal).getTime(), is(utcCal.getTimeInMillis()));
 
     final TimeZone minusFiveZone = TimeZone.getDefault();
-    minusFiveZone.setRawOffset((int) (minusFiveZone.getOffset(0L) - 5 * MILLIS_PER_HOUR));
+    minusFiveZone.setRawOffset((int) (minusFiveZone.getRawOffset() - 5 * MILLIS_PER_HOUR));
     final Calendar minusFiveCal = Calendar.getInstance(minusFiveZone, Locale.ROOT);
     assertThat(unixTimeToSqlTime(0, minusFiveCal).toString(), is("05:00:00"));
 
     final TimeZone plusFiveZone = TimeZone.getDefault();
-    plusFiveZone.setRawOffset((int) (plusFiveZone.getOffset(0L) + 5 * MILLIS_PER_HOUR));
+    plusFiveZone.setRawOffset((int) (plusFiveZone.getRawOffset() + 5 * MILLIS_PER_HOUR));
     final Calendar plusFiveCal = Calendar.getInstance(plusFiveZone, Locale.ROOT);
     assertThat(unixTimeToSqlTime(0, plusFiveCal).toString(), is("19:00:00"));
   }
@@ -1451,13 +1504,13 @@ public class DateTimeUtilsTest {
         is(0L));
 
     final TimeZone minusFiveZone = TimeZone.getDefault();
-    minusFiveZone.setRawOffset((int) (minusFiveZone.getOffset(0L) - 5 * MILLIS_PER_HOUR));
+    minusFiveZone.setRawOffset((int) (minusFiveZone.getRawOffset() - 5 * MILLIS_PER_HOUR));
     final Calendar minusFiveCal = Calendar.getInstance(minusFiveZone, Locale.ROOT);
     assertThat(sqlTimestampToUnixTimestamp(epoch, minusFiveCal),
         is(-5 * MILLIS_PER_HOUR));
 
     final TimeZone plusFiveZone = TimeZone.getDefault();
-    plusFiveZone.setRawOffset((int) (plusFiveZone.getOffset(0L) + 5 * MILLIS_PER_HOUR));
+    plusFiveZone.setRawOffset((int) (plusFiveZone.getRawOffset() + 5 * MILLIS_PER_HOUR));
     final Calendar plusFiveCal = Calendar.getInstance(plusFiveZone, Locale.ROOT);
     assertThat(sqlTimestampToUnixTimestamp(epoch, plusFiveCal),
         is(5 * MILLIS_PER_HOUR));
@@ -1557,13 +1610,13 @@ public class DateTimeUtilsTest {
     assertThat(unixTimestampToSqlTimestamp(0L, utcCal).getTime(), is(utcCal.getTimeInMillis()));
 
     final TimeZone minusFiveZone = TimeZone.getDefault();
-    minusFiveZone.setRawOffset((int) (minusFiveZone.getOffset(0L) - 5 * MILLIS_PER_HOUR));
+    minusFiveZone.setRawOffset((int) (minusFiveZone.getRawOffset() - 5 * MILLIS_PER_HOUR));
     final Calendar minusFiveCal = Calendar.getInstance(minusFiveZone, Locale.ROOT);
     assertThat(unixTimestampToSqlTimestamp(0L, minusFiveCal),
         is(Timestamp.valueOf("1970-01-01 05:00:00")));
 
     final TimeZone plusFiveZone = TimeZone.getDefault();
-    plusFiveZone.setRawOffset((int) (plusFiveZone.getOffset(0L) + 5 * MILLIS_PER_HOUR));
+    plusFiveZone.setRawOffset((int) (plusFiveZone.getRawOffset() + 5 * MILLIS_PER_HOUR));
     final Calendar plusFiveCal = Calendar.getInstance(plusFiveZone, Locale.ROOT);
     assertThat(unixTimestampToSqlTimestamp(0L, plusFiveCal),
         is(Timestamp.valueOf("1969-12-31 19:00:00")));
@@ -1574,15 +1627,18 @@ public class DateTimeUtilsTest {
    * proleptic Gregorian calendar used by unix timestamps.
    */
   @Test public void testUnixTimestampToSqlTimestampWithGregorianShift() {
-    assertThat(unixTimestampToSqlTimestamp(
+    assertThat(
+        unixTimestampToSqlTimestamp(
             timestampStringToUnixDate("1582-10-04 00:00:00"),
             CALENDAR),
         is(Timestamp.valueOf("1582-10-04 00:00:00.0")));
-    assertThat(unixTimestampToSqlTimestamp(
+    assertThat(
+        unixTimestampToSqlTimestamp(
             timestampStringToUnixDate("1582-10-05 00:00:00"),
             CALENDAR),
         is(Timestamp.valueOf("1582-10-15 00:00:00.0")));
-    assertThat(unixTimestampToSqlTimestamp(
+    assertThat(
+        unixTimestampToSqlTimestamp(
             timestampStringToUnixDate("1582-10-15 00:00:00"),
             CALENDAR),
         is(Timestamp.valueOf("1582-10-15 00:00:00.0")));
@@ -1604,6 +1660,116 @@ public class DateTimeUtilsTest {
     assertThat(
         unixTimestampToSqlTimestamp(timestampStringToUnixDate("9999-12-31 00:00:00"), CALENDAR),
         is(Timestamp.valueOf("9999-12-31 00:00:00")));
+  }
+
+  /** Until we upgrade to Junit5. */
+  private static void assertThrows(Runnable runnable,
+      Class<? extends Throwable> throwableClass,
+      Matcher<String> messageMatcher) {
+    try {
+      runnable.run();
+      throw new AssertionError("Exception not raised");
+    } catch (Throwable e) {
+      assertThat(throwableClass.isInstance(e), is(true));
+      assertThat(e.getMessage(), messageMatcher);
+    }
+  }
+
+  /**
+   * Test exception is raised if date in inappropriate meaning.
+   */
+  @Test public void testBrokenDate() {
+    // Test case for https://issues.apache.org/jira/browse/CALCITE-6248
+    // [CALCITE-6248] Illegal dates are accepted by casts
+    assertThrows(() -> DateTimeUtils.dateStringToUnixDate("2023-02-29"),
+        IllegalArgumentException.class,
+        is("Value of DAY field is out of range in '2023-02-29'"));
+
+    // Test case for https://issues.apache.org/jira/browse/CALCITE-6248
+    // [CALCITE-6248] Illegal dates are accepted by casts
+    assertThrows(() -> DateTimeUtils.dateStringToUnixDate("2023-13-1"),
+        IllegalArgumentException.class,
+        is("Value of MONTH field is out of range in '2023-13-1'"));
+
+    // Test case for https://issues.apache.org/jira/browse/CALCITE-6248
+    // [CALCITE-6248] Illegal dates are accepted by casts
+    assertThrows(() -> DateTimeUtils.dateStringToUnixDate("0-1-1"),
+        IllegalArgumentException.class,
+        is("Value of YEAR field is out of range in '0-1-1'"));
+
+    // 2023 is not a leap year
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("2023-02-29 12:00:00.123"),
+        IllegalArgumentException.class,
+        is("Value of DAY field is out of range in '2023-02-29 12:00:00.123'"));
+
+    // 2000 is a leap year
+    long x = timestampStringToUnixDate("2000-02-29 12:00:00.123");
+    assertThat(x, is(951825600123L));
+
+    // 1900 is not a leap year
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("1900-02-29 12:00:00.123"),
+        IllegalArgumentException.class,
+        is("Value of DAY field is out of range in '1900-02-29 12:00:00.123'"));
+
+    // 2100 is not a leap year
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("2100-02-29 12:00:00.123"),
+        IllegalArgumentException.class,
+        is("Value of DAY field is out of range in '2100-02-29 12:00:00.123'"));
+
+    // 1600 is a leap year
+    long x2 = timestampStringToUnixDate("1600-02-29 12:00:00.123");
+    assertThat(x2, is(-11670955199877L));
+
+    // 1500 is not a leap year
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("1500-02-29 12:00:00.123"),
+        IllegalArgumentException.class,
+        is("Value of DAY field is out of range in '1500-02-29 12:00:00.123'"));
+
+    // April has only 30 days
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("2023-04-31 12:00:00.123"),
+        IllegalArgumentException.class,
+        is("Value of DAY field is out of range in '2023-04-31 12:00:00.123'"));
+
+    // Month 13 is invalid
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("2023-13-29 12:00:00.123"),
+        IllegalArgumentException.class,
+        is("Invalid DATE value, '2023-13-29 12:00:00.123'"));
+
+    // Month -3 is invalid
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("2023--3-29 12:00:00.123"),
+        IllegalArgumentException.class,
+        is("Invalid DATE value, '2023--3-29 12:00:00.123'"));
+
+    // '123-1' is an invalid fractional second
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("2023-02-27 12:00:00.123-1"),
+        IllegalArgumentException.class,
+        is("Invalid TIME value, '2023-02-27 12:00:00.123-1'"));
+
+    // Invalid day 270
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("2023-02-270 12:00:00.123"),
+        IllegalArgumentException.class,
+        is("Invalid DATE value, '2023-02-270 12:00:00.123'"));
+
+    // Invalid fractional seconds '123-1'
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("2023-02-27 12:00:00.123-1"),
+        IllegalArgumentException.class,
+        is("Invalid TIME value, '2023-02-27 12:00:00.123-1'"));
+
+    // Hour 24 is invalid
+    assertThrows(() ->
+        DateTimeUtils.timestampStringToUnixDate("2023-02-28 24:00:00.123"),
+        IllegalArgumentException.class,
+        is("Value of HOUR field is out of range in '2023-02-28 24:00:00.123'"));
   }
 }
 
