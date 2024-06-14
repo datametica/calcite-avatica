@@ -23,6 +23,7 @@ import java.nio.file.Paths;
 import java.util.Properties;
 
 import static org.hamcrest.core.Is.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 
@@ -49,7 +50,19 @@ public class ConnectionConfigImplTest {
     Properties props = new Properties();
     ConnectionConfigImpl config = new ConnectionConfigImpl(props);
     assertNull(config.truststore());
-    assertNull(config.truststorePassword());
+    assertEquals(config.truststorePassword(), "");
+  }
+
+  @Test public void testFetchSizeDefault() {
+    ConnectionConfigImpl config = new ConnectionConfigImpl(new Properties());
+    assertEquals(100, config.fetchSize());
+  }
+
+  @Test public void testFetchSizeExplicit() {
+    Properties props = new Properties();
+    props.setProperty("fetch_size", "50");
+    ConnectionConfigImpl config = new ConnectionConfigImpl(props);
+    assertEquals(50, config.fetchSize());
   }
 }
 

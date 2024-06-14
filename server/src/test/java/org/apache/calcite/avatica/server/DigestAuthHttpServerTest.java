@@ -20,17 +20,20 @@ import org.apache.calcite.avatica.ConnectionSpec;
 import org.apache.calcite.avatica.jdbc.JdbcMeta;
 import org.apache.calcite.avatica.remote.Driver;
 import org.apache.calcite.avatica.remote.LocalService;
+import org.apache.calcite.avatica.util.Sources;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.net.URLDecoder;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.Properties;
 
 import static org.hamcrest.core.StringContains.containsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
@@ -44,8 +47,8 @@ public class DigestAuthHttpServerTest extends HttpAuthBase {
   private static String url;
 
   @BeforeClass public static void startServer() throws Exception {
-    final String userPropertiesFile = URLDecoder.decode(BasicAuthHttpServerTest.class
-        .getResource("/auth-users.properties").getFile(), "UTF-8");
+    final String userPropertiesFile = Sources.of(DigestAuthHttpServerTest.class
+        .getResource("/auth-users.properties")).file().getAbsolutePath();
     assertNotNull("Could not find properties file for digest auth users", userPropertiesFile);
 
     // Create a LocalService around HSQLDB
@@ -171,6 +174,14 @@ public class DigestAuthHttpServerTest extends HttpAuthBase {
           + " -> HsqlException: invalid authorization specification - not found: USER1",
           e.getMessage());
     }
+  }
+  @Test
+  public void testServerVersionNotReturnedForUnauthorisedAccess() throws Exception {
+    URL httpServerUrl = new URL("http://localhost:" + server.getPort());
+    HttpURLConnection conn = (HttpURLConnection) httpServerUrl.openConnection();
+    conn.setRequestMethod("GET");
+    assertEquals("Unauthorized response status code", 401, conn.getResponseCode());
+    assertNull("Server information was not expected", conn.getHeaderField("server"));
   }
 }
 

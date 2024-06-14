@@ -16,67 +16,71 @@
  */
 package org.apache.calcite.avatica.remote;
 
-import org.apache.http.HttpHost;
-import org.apache.http.NoHttpResponseException;
-import org.apache.http.auth.AuthSchemeProvider;
-import org.apache.http.auth.AuthScope;
-import org.apache.http.auth.UsernamePasswordCredentials;
-import org.apache.http.client.ClientProtocolException;
-import org.apache.http.client.CredentialsProvider;
-import org.apache.http.client.config.AuthSchemes;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.http.config.Lookup;
-import org.apache.http.config.Registry;
-import org.apache.http.config.RegistryBuilder;
-import org.apache.http.conn.socket.ConnectionSocketFactory;
-import org.apache.http.conn.socket.PlainConnectionSocketFactory;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.impl.auth.BasicSchemeFactory;
-import org.apache.http.impl.auth.DigestSchemeFactory;
-import org.apache.http.impl.client.BasicAuthCache;
-import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
-import org.apache.http.ssl.SSLContextBuilder;
-import org.apache.http.ssl.SSLContexts;
-import org.apache.http.util.EntityUtils;
+import org.apache.calcite.avatica.ConnectionConfig;
 
+import org.apache.hc.client5.http.ClientProtocolException;
+import org.apache.hc.client5.http.SystemDefaultDnsResolver;
+import org.apache.hc.client5.http.auth.AuthSchemeFactory;
+import org.apache.hc.client5.http.auth.AuthScope;
+import org.apache.hc.client5.http.auth.Credentials;
+import org.apache.hc.client5.http.auth.CredentialsProvider;
+import org.apache.hc.client5.http.auth.KerberosConfig;
+import org.apache.hc.client5.http.auth.KerberosCredentials;
+import org.apache.hc.client5.http.auth.StandardAuthScheme;
+import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.auth.BasicAuthCache;
+import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
+import org.apache.hc.client5.http.impl.auth.BasicSchemeFactory;
+import org.apache.hc.client5.http.impl.auth.DigestSchemeFactory;
+import org.apache.hc.client5.http.impl.auth.SPNegoSchemeFactory;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
+import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
+import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.NoHttpResponseException;
+import org.apache.hc.core5.http.config.Lookup;
+import org.apache.hc.core5.http.config.Registry;
+import org.apache.hc.core5.http.config.RegistryBuilder;
+import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
+
+import org.ietf.jgss.GSSCredential;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.security.Principal;
 import java.util.Objects;
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLContext;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A common class to invoke HTTP requests against the Avatica server agnostic of the data being
  * sent and received across the wire.
  */
-public class AvaticaCommonsHttpClientImpl implements AvaticaHttpClient,
-    UsernamePasswordAuthenticateable, TrustStoreConfigurable,
-        KeyStoreConfigurable, HostnameVerificationConfigurable {
+public class AvaticaCommonsHttpClientImpl implements AvaticaHttpClient, HttpClientPoolConfigurable,
+    UsernamePasswordAuthenticateable, GSSAuthenticateable {
   private static final Logger LOG = LoggerFactory.getLogger(AvaticaCommonsHttpClientImpl.class);
 
-  // Some basic exposed configurations
-  private static final String MAX_POOLED_CONNECTION_PER_ROUTE_KEY =
-      "avatica.pooled.connections.per.route";
-  private static final String MAX_POOLED_CONNECTION_PER_ROUTE_DEFAULT = "25";
-  private static final String MAX_POOLED_CONNECTIONS_KEY = "avatica.pooled.connections.max";
-  private static final String MAX_POOLED_CONNECTIONS_DEFAULT = "100";
+  // SPNEGO specific settings
+  private static final boolean USE_CANONICAL_HOSTNAME = Boolean
+      .parseBoolean(System.getProperty("avatica.http.spnego.use_canonical_hostname", "true"));
+  private static final boolean STRIP_PORT_ON_SERVER_LOOKUP = true;
+  private static final KerberosConfig KERBEROS_CONFIG =
+          KerberosConfig.custom().setStripPort(STRIP_PORT_ON_SERVER_LOOKUP)
+          .setUseCanonicalHostname(USE_CANONICAL_HOSTNAME)
+          .build();
+  private static AuthScope anyAuthScope = new AuthScope(null, -1);
 
-  protected final HttpHost host;
   protected final URI uri;
   protected BasicAuthCache authCache;
   protected CloseableHttpClient client;
@@ -85,121 +89,34 @@ public class AvaticaCommonsHttpClientImpl implements AvaticaHttpClient,
 
   protected UsernamePasswordCredentials credentials = null;
   protected CredentialsProvider credentialsProvider = null;
-  protected Lookup<AuthSchemeProvider> authRegistry = null;
+  protected Lookup<AuthSchemeFactory> authRegistry = null;
   protected Object userToken;
 
-  protected File truststore = null;
-  protected File keystore = null;
-  protected String truststorePassword = null;
-  protected String keystorePassword = null;
-  protected String keyPassword = null;
-  protected HostnameVerification hostnameVerification = null;
-
   public AvaticaCommonsHttpClientImpl(URL url) {
-    this.host = new HttpHost(url.getHost(), url.getPort(), url.getProtocol());
     this.uri = toURI(Objects.requireNonNull(url));
-    initializeClient();
   }
 
-  protected void initializeClient() {
-    socketFactoryRegistry = this.configureSocketFactories();
-    configureConnectionPool(socketFactoryRegistry);
+  protected void initializeClient(PoolingHttpClientConnectionManager pool,
+                                  ConnectionConfig config) {
     this.authCache = new BasicAuthCache();
-    // A single thread-safe HttpClient, pooling connections via the ConnectionManager
-    this.client = HttpClients.custom().setConnectionManager(pool).build();
-  }
-
-  protected void configureConnectionPool(Registry<ConnectionSocketFactory> registry) {
-    pool = new PoolingHttpClientConnectionManager(registry);
-    // Increase max total connection to 100
-    final String maxCnxns =
-        System.getProperty(MAX_POOLED_CONNECTIONS_KEY,
-            MAX_POOLED_CONNECTIONS_DEFAULT);
-    pool.setMaxTotal(Integer.parseInt(maxCnxns));
-    // Increase default max connection per route to 25
-    final String maxCnxnsPerRoute = System.getProperty(MAX_POOLED_CONNECTION_PER_ROUTE_KEY,
-        MAX_POOLED_CONNECTION_PER_ROUTE_DEFAULT);
-    pool.setDefaultMaxPerRoute(Integer.parseInt(maxCnxnsPerRoute));
-  }
-
-  protected Registry<ConnectionSocketFactory> configureSocketFactories() {
-    RegistryBuilder<ConnectionSocketFactory> registryBuilder = RegistryBuilder.create();
-    if (host.getSchemeName().equalsIgnoreCase("https")) {
-      configureHttpsRegistry(registryBuilder);
-    } else {
-      configureHttpRegistry(registryBuilder);
-    }
-    return registryBuilder.build();
-  }
-
-  protected void configureHttpsRegistry(RegistryBuilder<ConnectionSocketFactory> registryBuilder) {
-    try {
-      SSLContext sslContext = getSSLContext();
-      final HostnameVerifier verifier = getHostnameVerifier(hostnameVerification);
-      SSLConnectionSocketFactory sslFactory = new SSLConnectionSocketFactory(sslContext, verifier);
-      registryBuilder.register("https", sslFactory);
-    } catch (Exception e) {
-      LOG.error("HTTPS registry configuration failed");
-      throw new RuntimeException(e);
-    }
-  }
-
-  private SSLContext getSSLContext() throws Exception {
-    SSLContextBuilder sslContextBuilder = SSLContexts.custom();
-    if (null != truststore && null != truststorePassword) {
-      loadTrustStore(sslContextBuilder);
-    }
-    if (null != keystore && null != keystorePassword && null != keyPassword) {
-      loadKeyStore(sslContextBuilder);
-    }
-    return sslContextBuilder.build();
-  }
-
-  protected void loadKeyStore(SSLContextBuilder sslContextBuilder) throws Exception {
-    sslContextBuilder.loadKeyMaterial(keystore,
-            keystorePassword.toCharArray(), keyPassword.toCharArray());
-  }
-
-  protected void loadTrustStore(SSLContextBuilder sslContextBuilder) throws Exception {
-    sslContextBuilder.loadTrustMaterial(truststore, truststorePassword.toCharArray());
-  }
-
-  protected void configureHttpRegistry(RegistryBuilder<ConnectionSocketFactory> registryBuilder) {
-    registryBuilder.register("http", PlainConnectionSocketFactory.getSocketFactory());
-  }
-
-  /**
-   * Creates the {@code HostnameVerifier} given the provided {@code verification}.
-   *
-   * @param verification The intended hostname verification action.
-   * @return A verifier for the request verification.
-   * @throws IllegalArgumentException if the provided verification cannot be handled.
-   */
-  HostnameVerifier getHostnameVerifier(HostnameVerification verification) {
-    // Normally, the configuration logic would give us a default of STRICT if it was not
-    // provided by the user. It's easy for us to do a double-check.
-    if (verification == null) {
-      verification = HostnameVerification.STRICT;
-    }
-    switch (verification) {
-    case STRICT:
-      return SSLConnectionSocketFactory.getDefaultHostnameVerifier();
-    case NONE:
-      return NoopHostnameVerifier.INSTANCE;
-    default:
-      throw new IllegalArgumentException("Unhandled HostnameVerification: "
-          + hostnameVerification);
-    }
+    // A single thread-safe HttpClient, pooling connections via the
+    // ConnectionManager
+    RequestConfig.Builder requestConfigBuilder = RequestConfig.custom();
+    RequestConfig requestConfig = requestConfigBuilder
+        .setConnectTimeout(config.getHttpConnectionTimeout(), TimeUnit.MILLISECONDS)
+        .setResponseTimeout(config.getHttpResponseTimeout(), TimeUnit.MILLISECONDS)
+        .build();
+    HttpClientBuilder httpClientBuilder = HttpClients.custom().setConnectionManager(pool)
+        .setDefaultRequestConfig(requestConfig);
+    this.client = httpClientBuilder.build();
   }
 
   @Override public byte[] send(byte[] request) {
     while (true) {
       HttpClientContext context = HttpClientContext.create();
 
-      context.setTargetHost(host);
-
       // Set the credentials if they were provided.
-      if (null != this.credentials) {
+      if (null != this.credentialsProvider) {
         context.setCredentialsProvider(credentialsProvider);
         context.setAuthSchemeRegistry(authRegistry);
         context.setAuthCache(authCache);
@@ -216,7 +133,7 @@ public class AvaticaCommonsHttpClientImpl implements AvaticaHttpClient,
       post.setEntity(entity);
 
       try (CloseableHttpResponse response = execute(post, context)) {
-        final int statusCode = response.getStatusLine().getStatusCode();
+        final int statusCode = response.getCode();
         if (HttpURLConnection.HTTP_OK == statusCode
             || HttpURLConnection.HTTP_INTERNAL_ERROR == statusCode) {
           userToken = context.getUserToken();
@@ -226,7 +143,8 @@ public class AvaticaCommonsHttpClientImpl implements AvaticaHttpClient,
           continue;
         }
 
-        throw new RuntimeException("Failed to execute HTTP Request, got HTTP/" + statusCode);
+        throw new RuntimeException(
+            "Failed to execute HTTP Request, got HTTP/" + statusCode);
       } catch (NoHttpResponseException e) {
         // This can happen when sitting behind a load balancer and a backend server dies
         LOG.debug("The server failed to issue an HTTP response, retrying");
@@ -248,24 +166,60 @@ public class AvaticaCommonsHttpClientImpl implements AvaticaHttpClient,
 
   @Override public void setUsernamePassword(AuthenticationType authType, String username,
       String password) {
-    this.credentials = new UsernamePasswordCredentials(
-        Objects.requireNonNull(username), Objects.requireNonNull(password));
+    this.credentials = new UsernamePasswordCredentials(Objects.requireNonNull(username),
+        Objects.requireNonNull(password).toCharArray());
 
     this.credentialsProvider = new BasicCredentialsProvider();
-    credentialsProvider.setCredentials(AuthScope.ANY, credentials);
+    ((BasicCredentialsProvider) credentialsProvider).setCredentials(anyAuthScope, credentials);
 
-    RegistryBuilder<AuthSchemeProvider> authRegistryBuilder = RegistryBuilder.create();
+    RegistryBuilder<AuthSchemeFactory> authRegistryBuilder = RegistryBuilder.create();
     switch (authType) {
     case BASIC:
-      authRegistryBuilder.register(AuthSchemes.BASIC, new BasicSchemeFactory());
+      authRegistryBuilder.register(StandardAuthScheme.BASIC, new BasicSchemeFactory());
       break;
     case DIGEST:
-      authRegistryBuilder.register(AuthSchemes.DIGEST, new DigestSchemeFactory());
+      authRegistryBuilder.register(StandardAuthScheme.DIGEST, new DigestSchemeFactory());
       break;
     default:
       throw new IllegalArgumentException("Unsupported authentiation type: " + authType);
     }
     this.authRegistry = authRegistryBuilder.build();
+  }
+
+  @Override public void setGSSCredential(GSSCredential credential) {
+
+    this.authRegistry = RegistryBuilder.<AuthSchemeFactory>create()
+        .register(StandardAuthScheme.SPNEGO,
+                new SPNegoSchemeFactory(KERBEROS_CONFIG, SystemDefaultDnsResolver.INSTANCE))
+        .build();
+
+    this.credentialsProvider = new BasicCredentialsProvider();
+    if (null != credential) {
+      // Non-null credential should be used directly with KerberosCredentials.
+      // This is never set by the JDBC driver, nor the tests
+      ((BasicCredentialsProvider) this.credentialsProvider)
+              .setCredentials(anyAuthScope, new KerberosCredentials(credential));
+    } else {
+      // A null credential implies that the user is logged in via JAAS using the
+      // java.security.auth.login.config system property
+      ((BasicCredentialsProvider) this.credentialsProvider)
+              .setCredentials(anyAuthScope, EmptyCredentials.INSTANCE);
+    }
+  }
+
+  /**
+   * A credentials implementation which returns null.
+   */
+  private static class EmptyCredentials implements Credentials {
+    public static final EmptyCredentials INSTANCE = new EmptyCredentials();
+
+    @Override public char[] getPassword() {
+      return null;
+    }
+
+    @Override public Principal getUserPrincipal() {
+      return null;
+    }
   }
 
   private static URI toURI(URL url) throws RuntimeException {
@@ -276,31 +230,11 @@ public class AvaticaCommonsHttpClientImpl implements AvaticaHttpClient,
     }
   }
 
-  @Override public void setTrustStore(File truststore, String password) {
-    this.truststore = Objects.requireNonNull(truststore);
-    if (!truststore.exists() || !truststore.isFile()) {
-      throw new IllegalArgumentException(
-          "Truststore is must be an existing, regular file: " + truststore);
-    }
-    this.truststorePassword = Objects.requireNonNull(password);
-    initializeClient();
+  @Override public void setHttpClientPool(PoolingHttpClientConnectionManager pool,
+                                          ConnectionConfig config) {
+    initializeClient(pool, config);
   }
 
-  @Override public void setKeyStore(File keystore, String keystorepassword, String keypassword) {
-    this.keystore = Objects.requireNonNull(keystore);
-    if (!keystore.exists() || !keystore.isFile()) {
-      throw new IllegalArgumentException(
-              "Keystore is must be an existing, regular file: " + keystore);
-    }
-    this.keystorePassword = Objects.requireNonNull(keystorepassword);
-    this.keyPassword = Objects.requireNonNull(keypassword);
-    initializeClient();
-  }
-
-  @Override public void setHostnameVerification(HostnameVerification verification) {
-    this.hostnameVerification = Objects.requireNonNull(verification);
-    initializeClient();
-  }
 }
 
 // End AvaticaCommonsHttpClientImpl.java

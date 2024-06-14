@@ -37,6 +37,7 @@ import com.google.common.base.Throwables;
 import com.google.common.cache.Cache;
 
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -47,6 +48,7 @@ import java.io.DataOutputStream;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.URL;
@@ -59,6 +61,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -255,7 +258,7 @@ public class RemoteMetaTest {
       final Map<String, ConnectionPropertiesImpl> m = ((RemoteMeta) getMeta(conn)).propsMap;
       assertFalse("remote connection map should start ignorant", m.containsKey(id));
       // force creating a connection object on the remote side.
-      try (final Statement stmt = conn.createStatement()) {
+      try (Statement stmt = conn.createStatement()) {
         assertTrue("creating a statement starts a local object.", m.containsKey(id));
         assertTrue(stmt.execute("select count(1) from EMP"));
       }
@@ -272,7 +275,7 @@ public class RemoteMetaTest {
           defaultAutoCommit, remoteConn.getAutoCommit());
 
       // further interaction with the connection will force a sync
-      try (final Statement stmt = conn.createStatement()) {
+      try (Statement stmt = conn.createStatement()) {
         assertEquals(!defaultAutoCommit, remoteConn.getAutoCommit());
         assertFalse("local values should be clean", m.get(id).isDirty());
       }
@@ -389,8 +392,8 @@ public class RemoteMetaTest {
   @Test public void testExceptionPropagation() throws Exception {
     final String sql = "SELECT * from EMP LIMIT FOOBARBAZ";
     ConnectionSpec.getDatabaseLock().lock();
-    try (final AvaticaConnection conn = (AvaticaConnection) DriverManager.getConnection(url);
-        final Statement stmt = conn.createStatement()) {
+    try (AvaticaConnection conn = (AvaticaConnection) DriverManager.getConnection(url);
+        Statement stmt = conn.createStatement()) {
       try {
         // invalid SQL
         stmt.execute(sql);
@@ -457,11 +460,11 @@ public class RemoteMetaTest {
     final String tableName = "testbinaryandstrs";
     final byte[] data = "asdf".getBytes(StandardCharsets.UTF_8);
     ConnectionSpec.getDatabaseLock().lock();
-    try (final Connection conn = DriverManager.getConnection(url);
-        final Statement stmt = conn.createStatement()) {
+    try (Connection conn = DriverManager.getConnection(url);
+        Statement stmt = conn.createStatement()) {
       assertFalse(stmt.execute("DROP TABLE IF EXISTS " + tableName));
       assertFalse(stmt.execute("CREATE TABLE " + tableName + "(id int, bin BINARY(4))"));
-      try (final PreparedStatement prepStmt = conn.prepareStatement(
+      try (PreparedStatement prepStmt = conn.prepareStatement(
           "INSERT INTO " + tableName + " values(1, ?)")) {
         prepStmt.setBytes(1, data);
         assertFalse(prepStmt.execute());
@@ -473,7 +476,7 @@ public class RemoteMetaTest {
         assertArrayEquals("Bytes were " + Arrays.toString(results.getBytes(2)),
             data, results.getBytes(2));
         // as should string
-        assertEquals(new String(data, StandardCharsets.UTF_8), results.getString(2));
+        assertEquals(AvaticaUtils.newStringUtf8(data), results.getString(2));
         assertFalse(results.next());
       }
     } finally {
@@ -550,8 +553,8 @@ public class RemoteMetaTest {
     final String productTable = "commitrollback_products";
     final String salesTable = "commitrollback_sales";
     ConnectionSpec.getDatabaseLock().lock();
-    try (final Connection conn = DriverManager.getConnection(url);
-        final Statement stmt = conn.createStatement()) {
+    try (Connection conn = DriverManager.getConnection(url);
+        Statement stmt = conn.createStatement()) {
       assertFalse(stmt.execute("DROP TABLE IF EXISTS " + productTable));
       assertFalse(
           stmt.execute(
@@ -650,7 +653,7 @@ public class RemoteMetaTest {
 
   @Test public void getAvaticaVersion() throws Exception {
     ConnectionSpec.getDatabaseLock().lock();
-    try (final Connection conn = DriverManager.getConnection(url)) {
+    try (Connection conn = DriverManager.getConnection(url)) {
       DatabaseMetaData metadata = conn.getMetaData();
       assertTrue("DatabaseMetaData is not an instance of AvaticaDatabaseMetaData",
           metadata instanceof AvaticaSpecificDatabaseMetaData);
@@ -711,7 +714,7 @@ public class RemoteMetaTest {
     final Properties props = new Properties();
     props.setProperty("foo", "bar");
     final Properties originalProps = (Properties) props.clone();
-    try (final Connection conn = DriverManager.getConnection(url, props)) {
+    try (Connection conn = DriverManager.getConnection(url, props)) {
       // The contents of the two properties objects should not have changed after connecting.
       assertEquals(props, originalProps);
     }
@@ -730,6 +733,96 @@ public class RemoteMetaTest {
       rs.close();
       statement.close();
       conn.close();
+    } finally {
+      ConnectionSpec.getDatabaseLock().unlock();
+    }
+  }
+
+  @Test public void testBigDecimalTest() throws Exception {
+    final String tableName = "testbigdecimal";
+    try (Connection conn = DriverManager.getConnection(url);
+          Statement stmt = conn.createStatement()) {
+      conn.setAutoCommit(false);
+      stmt.execute("DROP TABLE IF EXISTS " + tableName);
+      stmt.execute("CREATE TABLE " + tableName + " ("
+          + "pk VARCHAR NOT NULL PRIMARY KEY, "
+          + "v1 DECIMAL(10,5))");
+      conn.commit();
+      try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO "
+          + tableName + " values(?, ?)")) {
+        pstmt.setString(1, "1");
+        pstmt.setBigDecimal(2, new BigDecimal("12345.67890"));
+        assertEquals(1, pstmt.executeUpdate());
+
+        pstmt.setString(1, "2");
+        pstmt.setObject(2, new BigDecimal("12345.67891"));
+        assertEquals(1, pstmt.executeUpdate());
+
+        pstmt.setString(1, "3");
+        pstmt.setObject(2, new BigDecimal("12345.67892"), Types.NUMERIC);
+        assertEquals(1, pstmt.executeUpdate());
+
+        pstmt.setString(1, "4");
+        pstmt.setObject(2, new BigDecimal("4000"), Types.DECIMAL);
+        assertEquals(1, pstmt.executeUpdate());
+
+        pstmt.setString(1, "5");
+        pstmt.setLong(2, 4000L);
+        assertEquals(1, pstmt.executeUpdate());
+
+        conn.commit();
+
+        ResultSet rs = stmt.executeQuery("select v1 from " + tableName + " order by pk asc");
+        assertTrue(rs.next());
+        assertTrue((new BigDecimal("12345.67890")).compareTo(rs.getBigDecimal(1)) == 0);
+        assertEquals("12345.67890", rs.getString(1));
+        assertTrue(rs.next());
+        assertEquals(rs.getObject(1).getClass(), BigDecimal.class);
+        assertTrue((new BigDecimal("12345.67891")).compareTo((BigDecimal) rs.getObject(1)) == 0);
+        // Not implemeneted / throws error
+        //assertTrue((new BigDecimal("12345.67891")).compareTo(
+        //    (BigDecimal)rs.getObject(1, BigDecimal.class)) == 0);
+
+        assertTrue(rs.next());
+        // The build system makes it impossible to test deprecated APIs, but these also
+        // fail bacase of RoundingMode.Unneccessary in AbstractCursor#NumberAccessor.:
+        //assertTrue((new BigDecimal("12345.679")).compareTo(rs.getBigDecimal(1, 3)) == 0);
+        //assertTrue((new BigDecimal("12345.6789200")).compareTo(rs.getBigDecimal(1, 7)) == 0);
+
+        assertTrue(rs.next());
+        assertEquals("4000.00000", rs.getString(1));
+        assertEquals(4000L, rs.getLong(1));
+        assertEquals(4000, rs.getInt(1));
+      }
+    }
+  }
+
+  @Test public void testNoTimeout() throws Exception {
+    ConnectionSpec.getDatabaseLock().lock();
+    try (AvaticaConnection conn = (AvaticaConnection) DriverManager.getConnection(url)) {
+      final AvaticaStatement statement = conn.createStatement();
+      // Well within the default 180 seconds
+      statement.execute(
+          "select * from (values ('a', 1), ('b', 2)) /* DELAY=5000 */");
+      statement.getResultSet();
+      // We only care whether it times out
+      statement.close();
+      conn.close();
+    } finally {
+      ConnectionSpec.getDatabaseLock().unlock();
+    }
+  }
+
+  @Test public void testTimeout() throws Exception {
+    ConnectionSpec.getDatabaseLock().lock();
+    try (AvaticaConnection conn = (AvaticaConnection) DriverManager.getConnection(
+        url + ";http_response_timeout=1000")) {
+      final AvaticaStatement statement = conn.createStatement();
+      statement.execute(
+          "select * from (values ('a', 1), ('b', 2)) /* DELAY=5000 */");
+      Assert.fail("Should have timed out");
+    } catch (SQLException e) {
+        // Expected outcome
     } finally {
       ConnectionSpec.getDatabaseLock().unlock();
     }

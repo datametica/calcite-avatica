@@ -90,7 +90,7 @@ public class AvaticaProtobufHandler extends AbstractAvaticaHandler {
   public void handle(String target, Request baseRequest,
       HttpServletRequest request, HttpServletResponse response)
       throws IOException, ServletException {
-    try (final Context ctx = this.requestTimer.start()) {
+    try (Context ctx = this.requestTimer.start()) {
       if (!request.getMethod().equals("POST")) {
         response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
         response.getOutputStream().write(
@@ -139,6 +139,9 @@ public class AvaticaProtobufHandler extends AbstractAvaticaHandler {
       } catch (RemoteUserDisallowedException e) {
         LOG.debug("Remote user is not authorized", e);
         handlerResponse = pbHandler.unauthorizedErrorResponse(e);
+      } catch (BadRequestException e) {
+        LOG.debug("Bad request exception", e);
+        handlerResponse = pbHandler.badRequestErrorResponse(e);
       } catch (Exception e) {
         LOG.debug("Error invoking request from {}", baseRequest.getRemoteAddr(), e);
         // Catch at the highest level of exceptions

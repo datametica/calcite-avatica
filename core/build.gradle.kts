@@ -35,12 +35,14 @@ dependencies {
     api("com.fasterxml.jackson.core:jackson-databind")
     api("com.google.protobuf:protobuf-java")
     implementation("com.fasterxml.jackson.core:jackson-core")
-    implementation("org.apache.httpcomponents:httpclient")
-    implementation("org.apache.httpcomponents:httpcore")
+    implementation("org.apache.httpcomponents.client5:httpclient5")
+    implementation("org.apache.httpcomponents.core5:httpcore5")
     implementation("org.slf4j:slf4j-api")
     testImplementation("junit:junit")
     testImplementation("org.mockito:mockito-core")
+    testImplementation("org.mockito:mockito-inline")
     testImplementation("org.hamcrest:hamcrest-core")
+    testRuntimeOnly("org.apache.logging.log4j:log4j-slf4j-impl")
 }
 
 sourceSets {
@@ -54,33 +56,6 @@ sourceSets {
         }
     }
 }
-
-val generatedProtobufDir = File(buildDir, "generated/source/proto/main/java")
-
-tasks {
-    named<Jar>("sourcesJar") {
-        // TODO: remove when protobuf-generated files are removed
-        from(generatedProtobufDir)
-    }
-}
-
-val String.v: String get() = rootProject.extra["$this.version"] as String
-
-protobuf {
-    protoc {
-        // Download from repositories
-        artifact = "com.google.protobuf:protoc:${"protobuf".v}"
-    }
-    generateProtoTasks {
-        for (task in ofSourceSet("main")) {
-            ide {
-                generatedJavaSources(task, generatedProtobufDir)
-            }
-        }
-    }
-}
-
-val javaFilteredOutput = File(buildDir, "generated/java-filtered")
 
 val filterJava by tasks.registering(Sync::class) {
     inputs.property("version", project.version)
@@ -96,6 +71,46 @@ val filterJava by tasks.registering(Sync::class) {
     into(javaFilteredOutput)
 }
 
+tasks {
+    named<Jar>("sourcesJar") {
+        // TODO: remove when protobuf-generated files are removed
+        from(generatedProtobufDir)
+        dependsOn(filterJava)
+    }
+}
+
+val generatedProtobufDir = layout.buildDirectory.get().file("generated/source/proto/main/java")
+
+val String.v: String get() = rootProject.extra["$this.version"] as String
+
+protobuf {
+    protoc {
+        // Download from repositories
+        artifact = "com.google.protobuf:protoc:${"protobuf".v}"
+    }
+    generateProtoTasks {
+        for (task in ofSourceSet("main")) {
+            tasks.getByName("sourcesJar") {
+                dependsOn(task)
+            }
+            ide {
+                generatedJavaSources(task, generatedProtobufDir.asFile)
+            }
+        }
+    }
+}
+
+val javaFilteredOutput = layout.buildDirectory.get().file("generated/java-filtered")
+
 ide {
-    generatedJavaSources(filterJava.get(), javaFilteredOutput)
+    generatedJavaSources(filterJava.get(), javaFilteredOutput.asFile)
+}
+
+tasks.processResources {
+    dependsOn(tasks.getByName("extractProto"))
+}
+
+tasks.autostyleJavaCheck {
+    dependsOn(filterJava)
+    dependsOn(tasks.getByName("generateProto"))
 }

@@ -49,7 +49,7 @@ dependencies {
     shaded("com.beust:jcommander")
 
     shaded("org.slf4j:slf4j-api")
-    shaded("org.slf4j:slf4j-log4j12")
+    shaded("org.apache.logging.log4j:log4j-slf4j-impl")
 }
 
 tasks {
@@ -84,7 +84,7 @@ tasks {
 
     shadowJar {
         manifest {
-            attributes["Main-Class"] = "org.apache.calcite.avatica.server.StandaloneServer"
+            attributes["Main-Class"] = "org.apache.calcite.avatica.standalone.StandaloneServer"
         }
         archiveClassifier.set("shadow")
         configurations = listOf(shaded)
@@ -97,9 +97,6 @@ tasks {
             "com.google.common",
             "com.google.protobuf",
             "javax.servlet",
-            "org.apache.log4j",
-            "org.eclipse.jetty",
-            "org.slf4j",
             "org.apache.http",
             "org.apache.commons"
         ).forEach {

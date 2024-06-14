@@ -16,9 +16,14 @@
  */
 package org.apache.calcite.avatica.server;
 
+import org.apache.calcite.avatica.AvaticaUtils;
+import org.apache.calcite.avatica.ConnectionConfig;
+import org.apache.calcite.avatica.ConnectionConfigImpl;
 import org.apache.calcite.avatica.SpnegoTestUtil;
-import org.apache.calcite.avatica.remote.AvaticaCommonsHttpClientSpnegoImpl;
+import org.apache.calcite.avatica.remote.AvaticaCommonsHttpClientImpl;
+import org.apache.calcite.avatica.remote.CommonsHttpClientPoolCache;
 
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.kerby.kerberos.kerb.KrbException;
 import org.apache.kerby.kerberos.kerb.client.KrbConfig;
 import org.apache.kerby.kerberos.kerb.client.KrbConfigKey;
@@ -43,6 +48,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.security.PrivilegedExceptionAction;
+import java.util.Properties;
 import java.util.Set;
 import javax.security.auth.Subject;
 import javax.security.auth.kerberos.KerberosTicket;
@@ -50,6 +56,7 @@ import javax.security.auth.kerberos.KerberosTicket;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -124,8 +131,6 @@ public class HttpServerSpnegoWithoutJaasTest {
     // Kerby sets "java.security.krb5.conf" for us!
     System.clearProperty("java.security.auth.login.config");
     System.setProperty("javax.security.auth.useSubjectCredsOnly", "false");
-    //System.setProperty("sun.security.spnego.debug", "true");
-    //System.setProperty("sun.security.krb5.debug", "true");
 
     // Create and start an HTTP server configured only to allow SPNEGO requests
     // We use `withAutomaticLogin(File)` here which should invalidate the need to do JAAS config
@@ -182,6 +187,14 @@ public class HttpServerSpnegoWithoutJaasTest {
     assertEquals(401, conn.getResponseCode());
   }
 
+  @Test public void testServerVersionNotReturnedForUnauthorisedAccess() throws Exception {
+    LOG.info("Connecting to {}", httpServerUrl.toString());
+    HttpURLConnection conn = (HttpURLConnection) httpServerUrl.openConnection();
+    conn.setRequestMethod("GET");
+    assertEquals("Unauthorized response status code", 401, conn.getResponseCode());
+    assertNull("Server information was not expected", conn.getHeaderField("server"));
+  }
+
   @Test public void testAuthenticatedClientsAllowed() throws Exception {
     // Create the subject for the client
     final Subject clientSubject = AvaticaJaasKrbUtil.loginUsingKeytab(
@@ -212,9 +225,16 @@ public class HttpServerSpnegoWithoutJaasTest {
         GSSCredential credential = gssManager.createCredential(gssClient,
             GSSCredential.DEFAULT_LIFETIME, oid, GSSCredential.INITIATE_ONLY);
 
+        Properties props = new Properties();
+        ConnectionConfig config = new ConnectionConfigImpl(props);
+
+        PoolingHttpClientConnectionManager pool = CommonsHttpClientPoolCache.getPool(config);
+
         // Passes the GSSCredential into the HTTP client implementation
-        final AvaticaCommonsHttpClientSpnegoImpl httpClient =
-            new AvaticaCommonsHttpClientSpnegoImpl(httpServerUrl, credential);
+        final AvaticaCommonsHttpClientImpl httpClient =
+            new AvaticaCommonsHttpClientImpl(httpServerUrl);
+        httpClient.setGSSCredential(credential);
+        httpClient.setHttpClientPool(pool, config);
 
         return httpClient.send(new byte[0]);
       }
@@ -222,8 +242,8 @@ public class HttpServerSpnegoWithoutJaasTest {
 
     // We should get a response which is "OK" with our client's name
     assertNotNull(response);
-    assertEquals("OK " + SpnegoTestUtil.CLIENT_PRINCIPAL,
-        new String(response, StandardCharsets.UTF_8));
+    assertEquals("OK " + SpnegoTestUtil.CLIENT_NAME,
+        AvaticaUtils.newStringUtf8(response));
   }
 }
 

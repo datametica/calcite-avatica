@@ -172,3 +172,98 @@ on-hover images for the permalink, but oh well.
 : _Default_: `null`.
 
 : _Required_: Only if `truststore` was provided.
+
+<strong><a name="keystore_type" href="#keystore_type">keystore_type</a></strong>
+
+: _Description_: The format of the truststore file specified by 
+  <a href="#truststore">truststore</a>. This needs to be specified if non JKS format keystores are
+  used (i.e. BCFKS). This setting applies both to keystore and truststore files.
+  For formats not included in the default JVM the corresponding security provider must be installed
+  and configured into the JVM, or added to the application classpath and configured.
+
+: _Default_: `null`.
+
+: _Required_: No.
+
+<strong><a name="fetch_size" href="#fetch_size">fetch_size</a></strong>
+
+: _Description_: The number of rows to fetch. If
+    <a href="https://docs.oracle.com/javase/8/docs/api/java/sql/Statement.html#setFetchSize-int-">
+    Statement:setFetchSize</a> is set, that value overrides fetch_size.
+
+: _Default_: `100`.
+
+: _Required_: No.
+
+<strong><a name="transparent_reconnection" href="#transparent_reconnection">transparent_reconnection</a></strong>
+
+: _Description_: The Java client versions between 1.5.0 and 1.20.0 transparently re-created
+  the Connection object on the client side if it expired from the server cache. This behaviour broke
+  JDBC compliance and could cause data loss for transactional write workloads, and has been removed
+  in 1.21.0. Setting this property to `true` restores the 1.20.0 behaviour.
+
+: _Default_: `false`.
+
+: _Required_: No.
+
+<strong><a name="use_client_side_lb" href="#use_client_side_lb">use_client_side_lb</a></strong>
+
+: _Description_: Enables the client side load-balancing.
+
+: _Default_: `false`.
+
+: _Required_: No.
+
+<strong><a name="lb_urls" href="#lb_urls">lb_urls</a></strong>
+
+: _Description_: List of URLs in a comma separated format, for example "URL1,URL2...URLn", to be used by the client side
+load balancer. Depending on the load balancing strategy, load balancer selects one of the URLs from the list.
+
+: _Default_: `null`.
+
+: _Required_: No.
+
+<strong><a name="lb_strategy" href="#lb_strategy">lb_strategy</a></strong>
+
+: _Description_: The load balancing strategy to be used by the client side load balancer. It must be a fully qualified
+Java class name which implements `org.apache.calcite.avatica.ha.LBStrategy`. Three implementations are provided
+`org.apache.calcite.avatica.ha.RandomSelectLBStrategy`, `org.apache.calcite.avatica.ha.RoundRobinLBStrategy` and
+`org.apache.calcite.avatica.ha.ShuffledRoundRobinLBStrategy`
+
+: _Default_: `org.apache.calcite.avatica.ha.ShuffledRoundRobinLBStrategy`.
+
+: _Required_: No.
+
+<strong><a name="lb_connection_failover_retries" href="#lb_connection_failover_retries">lb_connection_failover_retries</a></strong>
+
+: _Description_: Number of times that the load balancer tries to retry the connection with another URL (fail-over).
+When the connection fails, load balancer retries the connection with another URL, chosen by the load balancing strategy.
+
+: _Default_: `3`.
+
+: _Required_: No.
+
+<strong><a name="lb_connection_failover_sleep_time" href="#lb_connection_failover_sleep_time">lb_connection_failover_sleep_time</a></strong>
+
+: _Description_: The amount of time in milliseconds that the load balancer sleeps before attempting the next connection
+failover retry.
+
+: _Default_: `1000`.
+
+: _Required_: No.
+
+<strong><a name="http_connection_timeout" href="#http_connection_timeout">http_connection_timeout</a></strong>
+
+: _Description_: Timeout in milliseconds for establishing the connection between the Avatica HTTP client and server.
+
+: _Default_: `180000` (3 minutes).
+
+: _Required_: No.
+
+<strong><a name="http_response_timeout" href="#http_response_timeout">http_response_timeout</a></strong>
+
+: _Description_: Socket Timeout in milliseconds for the connection between the Avatica HTTP client and server.
+
+: _Default_: `180000` (3 minutes).
+
+: _Required_: No.

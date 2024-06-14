@@ -16,14 +16,22 @@
  */
 package org.apache.calcite.avatica.util;
 
+import java.sql.Time;
+import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.text.NumberFormat;
 import java.text.ParsePosition;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoField;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 import java.util.TimeZone;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Utility functions for datetime types: date, time, timestamp.
@@ -50,6 +58,18 @@ public class DateTimeUtils {
   /** The SimpleDateFormat string for ISO timestamps, "yyyy-MM-dd HH:mm:ss". */
   public static final String TIMESTAMP_FORMAT_STRING =
       DATE_FORMAT_STRING + " " + TIME_FORMAT_STRING;
+
+  /** Regex for date, YYYY-MM-DD. */
+  private static final Pattern ISO_DATE_PATTERN =
+      Pattern.compile("^(\\d{4})-([0]\\d|1[0-2])-([0-2]\\d|3[01])$");
+
+  /** Regex for lenient date patterns. */
+  private static final Pattern LENIENT_DATE_PATTERN =
+      Pattern.compile("^\\s*(\\d{1,4})-(\\d{1,2})-(\\d{1,2})\\s*$");
+
+  /** Regex for time, HH:MM:SS. */
+  private static final Pattern ISO_TIME_PATTERN =
+      Pattern.compile("^([0-2]\\d):[0-5]\\d:[0-5]\\d(\\.\\d*)*$");
 
   /** The GMT time zone.
    *
@@ -90,6 +110,11 @@ public class DateTimeUtils {
    * The number of seconds in a day.
    */
   public static final long SECONDS_PER_DAY = 86_400; // = 24 * 60 * 60
+
+  /**
+   * The number of nanoseconds in a millisecond.
+   */
+  public static final long NANOS_PER_MILLI = 1000000L;
 
   /**
    * Calendar set to the epoch (1970-01-01 00:00:00 UTC). Useful for
@@ -230,7 +255,7 @@ public class DateTimeUtils {
         }
         NumberFormat nf = NumberFormat.getIntegerInstance(Locale.ROOT);
         Number num = nf.parse(s, pp);
-        if ((num == null) || (pp.getIndex() != s.length())) {
+        if (num == null || pp.getIndex() != s.length()) {
           // Invalid decimal portion
           return null;
         }
@@ -632,6 +657,7 @@ public class DateTimeUtils {
   }
 
   public static int dateStringToUnixDate(String s) {
+    validateLenientDate(s);
     int hyphen1 = s.indexOf('-');
     int y;
     int m;
@@ -666,15 +692,15 @@ public class DateTimeUtils {
     int milli;
     if (colon1 < 0) {
       hour = Integer.parseInt(v.trim());
-      minute = 1;
-      second = 1;
+      minute = 0;
+      second = 0;
       milli = 0;
     } else {
       hour = Integer.parseInt(v.substring(start, colon1).trim());
       final int colon2 = v.indexOf(':', colon1 + 1);
       if (colon2 < 0) {
         minute = Integer.parseInt(v.substring(colon1 + 1).trim());
-        second = 1;
+        second = 0;
         milli = 0;
       } else {
         minute = Integer.parseInt(v.substring(colon1 + 1, colon2).trim());
@@ -718,15 +744,129 @@ public class DateTimeUtils {
     return r;
   }
 
+  /** Check that the combination year, month, date forms a legal date. */
+  static void checkLegalDate(int year, int month, int day, String full) {
+    if (day > daysInMonth(year, month)) {
+      throw fieldOutOfRange("DAY", full);
+    }
+    if (month < 1 || month > 12) {
+      throw fieldOutOfRange("MONTH", full);
+    }
+    if (year <= 0) {
+      // Year 0 is not really a legal value.
+      throw fieldOutOfRange("YEAR", full);
+    }
+  }
+
+  /** Lenient date validation.  This accepts more date strings
+   * than validateDate: it does not insist on having two-digit
+   * values for days and months, and accepts spaces around the value.
+   * @param s     A string representing a date.
+   */
+  private static void validateLenientDate(String s) {
+    Matcher matcher = LENIENT_DATE_PATTERN.matcher(s);
+    if (matcher.find()) {
+      int year = Integer.parseInt(matcher.group(1));
+      int month = Integer.parseInt(matcher.group(2));
+      int day = Integer.parseInt(matcher.group(3));
+      checkLegalDate(year, month, day, s);
+    } else {
+      throw invalidType("DATE", s);
+    }
+  }
+
+  private static void validateDate(String s, String full) {
+    Matcher matcher = ISO_DATE_PATTERN.matcher(s);
+    if (matcher.find()) {
+      int year = Integer.parseInt(matcher.group(1));
+      int month = Integer.parseInt(matcher.group(2));
+      int day = Integer.parseInt(matcher.group(3));
+      checkLegalDate(year, month, day, full);
+    } else {
+      throw invalidType("DATE", full);
+    }
+  }
+
+  /** Returns the number of days in a month in the proleptic Gregorian calendar
+   * used by ISO-8601.
+   *
+   * <p>"Proleptic" means that we apply the calendar to dates before the
+   * Gregorian calendar was invented (in 1582). Thus, years 0 and 1200 are
+   * considered leap years, and 1500 is not. */
+  private static int daysInMonth(int year, int month) {
+    switch (month) {
+    case 9:
+    case 4:
+    case 6:
+    case 11:
+        // Thirty days hath September,
+        // April, June, and November,
+      return 30;
+
+    default:
+      // All the rest have thirty-one,
+      return 31;
+
+    case 2:
+      // Except February, twenty-eight days clear,
+      // And twenty-nine in each leap year.
+      return isLeapYear(year) ? 29 : 28;
+    }
+  }
+
+  /** Whether a year is considered a leap year in the proleptic Gregorian
+   * calendar. */
+  private static boolean isLeapYear(int year) {
+    return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+  }
+
+  private static void validateTime(String time, String full) {
+    Matcher matcher = ISO_TIME_PATTERN.matcher(time);
+    if (matcher.find()) {
+      int hour = Integer.parseInt(matcher.group(1));
+      if (hour > 23) {
+        throw fieldOutOfRange("HOUR", full);
+      }
+    } else {
+      throw invalidType("TIME", full);
+    }
+  }
+
+  private static IllegalArgumentException fieldOutOfRange(String field,
+      String full) {
+    return new IllegalArgumentException("Value of " + field
+        + " field is out of range in '" + full + "'");
+  }
+
+  private static IllegalArgumentException invalidType(String type,
+      String full) {
+    return new IllegalArgumentException("Invalid " + type + " value, '"
+        + full + "'");
+  }
+
   public static long timestampStringToUnixDate(String s) {
+    try {
+      return timestampStringToUnixDate0(s);
+    } catch (NumberFormatException e) {
+      throw new IllegalArgumentException(e.getMessage());
+    }
+  }
+
+  private static long timestampStringToUnixDate0(String s) {
     final long d;
     final long t;
     s = s.trim();
     int space = s.indexOf(' ');
     if (space >= 0) {
-      d = dateStringToUnixDate(s.substring(0, space));
-      t = timeStringToUnixDate(s, space + 1);
+      String datePart = s.substring(0, space);
+      validateDate(datePart, s);
+      d = dateStringToUnixDate(datePart);
+
+      String timePart = s.substring(space + 1);
+      validateTime(timePart, s);
+      t = timeStringToUnixDate(timePart);
     } else {
+      validateDate(s, s);
       d = dateStringToUnixDate(s);
       t = 0;
     }
@@ -784,9 +924,9 @@ public class DateTimeUtils {
     case DAY:
       return day;
     case DOW:
-      return (int) floorMod(julian + 1, 7) + 1; // sun=1, sat=7
+      return Math.floorMod(julian + 1, 7) + 1; // sun=1, sat=7
     case ISODOW:
-      return (int) floorMod(julian, 7) + 1; // mon=1, sun=7
+      return Math.floorMod(julian, 7) + 1; // mon=1, sun=7
     case WEEK:
       return getIso8601WeekNumber(julian, year, month, day);
     case DOY:
@@ -813,7 +953,7 @@ public class DateTimeUtils {
    * Sometimes it is in the year before the given year. */
   private static long firstMondayOfFirstWeek(int year) {
     final long janFirst = ymdToJulian(year, 1, 1);
-    final long janFirstDow = floorMod(janFirst + 1, 7); // sun=0, sat=6
+    final long janFirstDow = Math.floorMod(janFirst + 1, 7L); // sun=0, sat=6
     return janFirst + (11 - janFirstDow) % 7 - 3;
   }
 
@@ -824,15 +964,15 @@ public class DateTimeUtils {
   private static int getIso8601WeekNumber(int julian, int year, int month, int day) {
     long fmofw = firstMondayOfFirstWeek(year);
     if (month == 12 && day > 28) {
-      if (31 - day + 4 > 7 - ((int) floorMod(julian, 7) + 1)
-          && 31 - day + (int) (floorMod(julian, 7) + 1) >= 4) {
+      if (31 - day + 4 > 7 - (Math.floorMod(julian, 7) + 1)
+          && 31 - day + Math.floorMod(julian, 7) + 1 >= 4) {
         return (int) (julian - fmofw) / 7 + 1;
       } else {
         return 1;
       }
     } else if (month == 1 && day < 5) {
-      if (4 - day <= 7 - ((int) floorMod(julian, 7) + 1)
-          && day - ((int) (floorMod(julian, 7) + 1)) >= -3) {
+      if (4 - day <= 7 - (Math.floorMod(julian, 7) + 1)
+          && day - (Math.floorMod(julian, 7) + 1) >= -3) {
         return 1;
       } else {
         return (int) (julian - firstMondayOfFirstWeek(year - 1)) / 7 + 1;
@@ -844,7 +984,8 @@ public class DateTimeUtils {
   /** Extracts a time unit from a UNIX date (milliseconds since epoch). */
   public static int unixTimestampExtract(TimeUnitRange range,
       long timestamp) {
-    return unixTimeExtract(range, (int) floorMod(timestamp, MILLIS_PER_DAY));
+    return unixTimeExtract(range,
+        (int) Math.floorMod(timestamp, MILLIS_PER_DAY));
   }
 
   /** Extracts a time unit from a time value (milliseconds since midnight). */
@@ -873,7 +1014,7 @@ public class DateTimeUtils {
 
   /** Resets to epoch (1970-01-01) the "date" part of a timestamp. */
   public static long resetDate(long timestamp) {
-    return floorMod(timestamp, MILLIS_PER_DAY);
+    return Math.floorMod(timestamp, MILLIS_PER_DAY);
   }
 
   public static long unixTimestampFloor(TimeUnitRange range, long timestamp) {
@@ -921,11 +1062,34 @@ public class DateTimeUtils {
     int month = (m + 2) % 12 + 1;
     int day = d + 1;
     switch (range) {
+    case MILLENNIUM:
+      return floor
+          ? ymdToUnixDate(1000 * ((year + 999) / 1000) - 999, 1, 1)
+          : ymdToUnixDate(1000 * ((year + 999) / 1000) + 1, 1, 1);
+    case CENTURY:
+      return floor
+          ? ymdToUnixDate(100 * ((year + 99) / 100) - 99, 1, 1)
+          : ymdToUnixDate(100 * ((year + 99) / 100) + 1, 1, 1);
+    case DECADE:
+      return floor
+          ? ymdToUnixDate(10 * (year / 10), 1, 1)
+          : ymdToUnixDate(10 * (1 + year / 10), 1, 1);
     case YEAR:
       if (!floor && (month > 1 || day > 1)) {
         ++year;
       }
       return ymdToUnixDate(year, 1, 1);
+    case ISOYEAR:
+      final int isoWeek = getIso8601WeekNumber(julian, year, month, day);
+      final int dowMon = Math.floorMod(julian, 7); // mon=0, sun=6
+      final int isoYearFloor = julian - 7 * (isoWeek - 1) - dowMon;
+      if (floor || isoYearFloor == julian) {
+        return isoYearFloor - EPOCH_JULIAN;
+      } else {
+        // CEIL of this date is the FLOOR of the date 53 weeks later.
+        // (Usually 52 weeks later, sometimes 53 weeks later.)
+        return julianDateFloor(range, isoYearFloor + 7 * 53, true);
+      }
     case QUARTER:
       final int q = (month - 1) / 3;
       if (!floor) {
@@ -947,7 +1111,7 @@ public class DateTimeUtils {
       }
       return ymdToUnixDate(year, month, 1);
     case WEEK:
-      final int dow = (int) floorMod(julian + 1, 7); // sun=0, sat=6
+      final int dow = Math.floorMod(julian + 1, 7); // sun=0, sat=6
       int offset = dow;
       if (!floor && offset > 0) {
         offset -= 7;
@@ -965,6 +1129,19 @@ public class DateTimeUtils {
     return julian - EPOCH_JULIAN;
   }
 
+  /** Calculates the Julian Day Number for any valid date in the Gregorian
+   * calendar.
+   *
+   * <p>If date is invalid, result is unspecified.
+   *
+   * <p>See an
+   * <a href="http://www.cs.utsa.edu/~cs1063/projects/Spring2011/Project1/jdn-explanation.html">
+   * explanation</a> of this algorithm.
+   *
+   * @param year Year (e.g. 2020 means 2020 CE, 1 means 1 CE, 0 means 1 BCE
+   *   because there is no 0 CE, -1 means 2 BCE, etc.)
+   * @param month Month (between 1 and 12 inclusive, 1 meaning January)
+   * @param day Day of month (between 1 and 31 inclusive) */
   public static int ymdToJulian(int year, int month, int day) {
     int a = (14 - month) / 12;
     int y = year + 4800 - a;
@@ -990,7 +1167,7 @@ public class DateTimeUtils {
    * of milliseconds since the epoch. */
   public static long addMonths(long timestamp, int m) {
     final long millis =
-        DateTimeUtils.floorMod(timestamp, DateTimeUtils.MILLIS_PER_DAY);
+        Math.floorMod(timestamp, DateTimeUtils.MILLIS_PER_DAY);
     timestamp -= millis;
     final long x =
         addMonths((int) (timestamp / DateTimeUtils.MILLIS_PER_DAY), m);
@@ -1003,18 +1180,33 @@ public class DateTimeUtils {
     int y0 = (int) DateTimeUtils.unixDateExtract(TimeUnitRange.YEAR, date);
     int m0 = (int) DateTimeUtils.unixDateExtract(TimeUnitRange.MONTH, date);
     int d0 = (int) DateTimeUtils.unixDateExtract(TimeUnitRange.DAY, date);
-    int y = m / 12;
-    y0 += y;
-    m0 += m - y * 12;
+    m0 += m;
+    int deltaYear = Math.floorDiv(m0, 12);
+    y0 += deltaYear;
+    m0 = Math.floorMod(m0, 12);
+    if (m0 == 0) {
+      y0 -= 1;
+      m0 += 12;
+    }
+
     int last = lastDay(y0, m0);
     if (d0 > last) {
-      d0 = 1;
-      if (++m0 > 12) {
-        m0 = 1;
-        ++y0;
-      }
+      d0 = last;
     }
     return DateTimeUtils.ymdToUnixDate(y0, m0, d0);
+  }
+
+  /**
+   * SQL {@code LAST_DAY} function.
+   *
+   * @param date days since epoch
+   * @return days of the last day of the month since epoch
+   */
+  public static int lastDay(int date) {
+    int y0 = (int) DateTimeUtils.unixDateExtract(TimeUnitRange.YEAR, date);
+    int m0 = (int) DateTimeUtils.unixDateExtract(TimeUnitRange.MONTH, date);
+    int last = lastDay(y0, m0);
+    return DateTimeUtils.ymdToUnixDate(y0, m0, last);
   }
 
   private static int lastDay(int y, int m) {
@@ -1040,31 +1232,42 @@ public class DateTimeUtils {
     if (date0 < date1) {
       return -subtractMonths(date1, date0);
     }
-    // Start with an estimate.
-    // Since no month has more than 31 days, the estimate is <= the true value.
-    int m = (date0 - date1) / 31;
-    for (;;) {
-      int date2 = addMonths(date1, m);
-      if (date2 >= date0) {
-        return m;
-      }
-      int date3 = addMonths(date1, m + 1);
-      if (date3 > date0) {
-        return m;
-      }
-      ++m;
+
+    int y0 = (int) DateTimeUtils.unixDateExtract(TimeUnitRange.YEAR, date0);
+    int m0 = (int) DateTimeUtils.unixDateExtract(TimeUnitRange.MONTH, date0);
+    int d0 = (int) DateTimeUtils.unixDateExtract(TimeUnitRange.DAY, date0);
+
+    int y1 = (int) DateTimeUtils.unixDateExtract(TimeUnitRange.YEAR, date1);
+    int m1 = (int) DateTimeUtils.unixDateExtract(TimeUnitRange.MONTH, date1);
+    int d1 = (int) DateTimeUtils.unixDateExtract(TimeUnitRange.DAY, date1);
+
+    int years = y0 - y1;
+    boolean adjust = m0 < m1 || m0 == m1 && d0 < d1;
+    if (adjust) {
+      years--;
     }
+
+    int months = 12 * years;
+    if (adjust) {
+      months += 12 - (m1 - m0);
+    } else {
+      months += m0 - m1;
+    }
+
+    if (d0 < d1) {
+      months--;
+    }
+
+    return months;
   }
 
   public static int subtractMonths(long t0, long t1) {
-    final long millis0 =
-        DateTimeUtils.floorMod(t0, DateTimeUtils.MILLIS_PER_DAY);
-    final int d0 = (int) DateTimeUtils.floorDiv(t0 - millis0,
-        DateTimeUtils.MILLIS_PER_DAY);
-    final long millis1 =
-        DateTimeUtils.floorMod(t1, DateTimeUtils.MILLIS_PER_DAY);
-    final int d1 = (int) DateTimeUtils.floorDiv(t1 - millis1,
-        DateTimeUtils.MILLIS_PER_DAY);
+    final long millis0 = Math.floorMod(t0, DateTimeUtils.MILLIS_PER_DAY);
+    final int d0 =
+        (int) Math.floorDiv(t0 - millis0, DateTimeUtils.MILLIS_PER_DAY);
+    final long millis1 = Math.floorMod(t1, DateTimeUtils.MILLIS_PER_DAY);
+    final int d1 =
+        (int) Math.floorDiv(t1 - millis1, DateTimeUtils.MILLIS_PER_DAY);
     int x = subtractMonths(d0, d1);
     final long d2 = addMonths(d1, x);
     if (d2 == d0 && millis0 < millis1) {
@@ -1073,17 +1276,23 @@ public class DateTimeUtils {
     return x;
   }
 
-  /** Divide, rounding towards negative infinity. */
+  /** Divide, rounding towards negative infinity.
+   *
+   * @deprecated Use {@link Math#floorDiv(long, long)} */
+  @Deprecated // to be removed before 2.0
   public static long floorDiv(long x, long y) {
     long r = x / y;
     // if the signs are different and modulo not zero, round down
-    if ((x ^ y) < 0 && (r * y != x)) {
+    if ((x ^ y) < 0 && r * y != x) {
       r--;
     }
     return r;
   }
 
-  /** Modulo, always returning a non-negative result. */
+  /** Modulo, always returning a non-negative result.
+   *
+   * @deprecated Use {@link Math#floorMod(long, long)} */
+  @Deprecated // to be removed before 2.0
   public static long floorMod(long x, long y) {
     return x - floorDiv(x, y) * y;
   }
@@ -1102,6 +1311,235 @@ public class DateTimeUtils {
   /** Returns the value of a {@code OffsetDateTime} as a string. */
   public static String offsetDateTimeValue(Object o) {
     return OFFSET_DATE_TIME_HANDLER.stringValue(o);
+  }
+
+  /**
+   * Calculates the unix date as the number of days since January 1st, 1970 UTC for the given SQL
+   * date.
+   *
+   * @see #sqlDateToUnixDate(java.sql.Date, TimeZone)
+   */
+  public static int sqlDateToUnixDate(java.sql.Date date, Calendar calendar) {
+    return sqlDateToUnixDate(date, calendar != null ? calendar.getTimeZone() : null);
+  }
+
+  /**
+   * Calculates the unix date as the number of days since January 1st, 1970 UTC for the given SQL
+   * date.
+   *
+   * <p>The {@link java.sql.Date} class uses the standard Gregorian calendar which switches from
+   * the Julian calendar to the Gregorian calendar in October 1582. For compatibility with
+   * ISO-8601, the value is converted to a {@link LocalDate} which uses the proleptic Gregorian
+   * calendar.
+   *
+   * <p>For backwards compatibility, timezone offsets are calculated in relation to the local
+   * timezone instead of UTC. Providing the default timezone or {@code null} will return the date
+   * unmodified.
+   *
+   * <p>If the date contains a partial day, it will be rounded to a full day depending on the
+   * milliseconds value. If the milliseconds value is positive, it will be rounded down to the
+   * closest full day. If the milliseconds value is negative, it will be rounded up to the closest
+   * full day.
+   */
+  public static int sqlDateToUnixDate(java.sql.Date date, TimeZone timeZone) {
+    final long time = date.getTime();
+
+    // Convert from standard Gregorian calendar to ISO calendar system
+    // Use a SQL timestamp to include the time offset from UTC in the unix timestamp
+    final LocalDateTime dateTime = new Timestamp(time).toLocalDateTime();
+    long unixTimestamp = dateTime.toEpochSecond(ZoneOffset.UTC)
+        * DateTimeUtils.MILLIS_PER_SECOND
+        + dateTime.get(ChronoField.MILLI_OF_SECOND);
+
+    // Calculate timezone offset in relation to local time
+    if (timeZone != null) {
+      unixTimestamp += timeZone.getOffset(time);
+    }
+    unixTimestamp -= DEFAULT_ZONE.getOffset(time);
+
+    return (int) (unixTimestamp / DateTimeUtils.MILLIS_PER_DAY);
+  }
+
+  /**
+   * Converts the given unix date to a SQL date.
+   *
+   * <p>The unix date should be the number of days since January 1st, 1970 UTC using the proleptic
+   * Gregorian calendar as defined by ISO-8601. The returned {@link java.sql.Date} object will use
+   * the standard Gregorian calendar which switches from the Julian calendar to the Gregorian
+   * calendar in October 1582. This conversion is handled by the {@link java.sql.Date} class when
+   * converting from a {@link LocalDate} object.
+   *
+   * <p>For backwards compatibility, timezone offsets are calculated in relation to the local
+   * timezone instead of UTC. Providing the default timezone or {@code null} will return the date
+   * unmodified.
+   */
+  public static java.sql.Date unixDateToSqlDate(int date, Calendar calendar) {
+    // Convert unix date from the ISO calendar system to the standard Gregorian calendar
+    final LocalDate localDate = LocalDate.ofEpochDay(date);
+    final java.sql.Date sqlDate = java.sql.Date.valueOf(localDate);
+
+    // Calculate timezone offset in relation to local time
+    final long time = sqlDate.getTime();
+    final int offset = calendar != null ? calendar.getTimeZone().getOffset(time) : 0;
+    sqlDate.setTime(time + DEFAULT_ZONE.getOffset(time) - offset);
+
+    return sqlDate;
+  }
+
+  /**
+   * Calculates the unix date as the number of milliseconds since January 1st, 1970 UTC for the
+   * given date.
+   *
+   * @see #utilDateToUnixTimestamp(Date, TimeZone)
+   */
+  public static long utilDateToUnixTimestamp(Date date, Calendar calendar) {
+    return utilDateToUnixTimestamp(date, calendar != null ? calendar.getTimeZone() : null);
+  }
+
+  /**
+   * Calculates the unix date as the number of milliseconds since January 1st, 1970 UTC for the
+   * given date.
+   *
+   * <p>The {@link Date} class uses the standard Gregorian calendar which switches from the Julian
+   * calendar to the Gregorian calendar in October 1582. For compatibility with ISO-8601, the value
+   * is converted to a {@code java.time} object which uses the proleptic Gregorian calendar.
+   *
+   * <p>For backwards compatibility, timezone offsets are calculated in relation to the local
+   * timezone instead of UTC. Providing the default timezone or {@code null} will return the date
+   * unmodified.
+   */
+  public static long utilDateToUnixTimestamp(Date date, TimeZone timeZone) {
+    final Timestamp timestamp = new Timestamp(date.getTime());
+    return sqlTimestampToUnixTimestamp(timestamp, timeZone);
+  }
+
+  /**
+   * Converts the given unix timestamp to a Java date.
+   *
+   * <p>The unix timestamp should be the number of milliseconds since January 1st, 1970 UTC using
+   * the proleptic Gregorian calendar as defined by ISO-8601. The returned {@link Date} object will
+   * use the standard Gregorian calendar which switches from the Julian calendar to the Gregorian
+   * calendar in October 1582. This conversion is handled by the {@code java.sql} package when
+   * converting from a {@code java.time} object.
+   *
+   * <p>For backwards compatibility, timezone offsets are calculated in relation to the local
+   * timezone instead of UTC. Providing the default timezone or {@code null} will return the date
+   * unmodified.
+   */
+  public static Date unixTimestampToUtilDate(long timestamp, Calendar calendar) {
+    final Timestamp sqlTimestamp = unixTimestampToSqlTimestamp(timestamp, calendar);
+    return new Date(sqlTimestamp.getTime());
+  }
+
+  /**
+   * Calculates the unix time as the number of milliseconds since the previous day in UTC for the
+   * given SQL time.
+   *
+   * @see #sqlTimeToUnixTime(Time, TimeZone)
+   */
+  public static int sqlTimeToUnixTime(Time time, Calendar calendar) {
+    return sqlTimeToUnixTime(time, calendar != null ? calendar.getTimeZone() : null);
+  }
+
+  /**
+   * Calculates the unix time as the number of milliseconds since the previous day in UTC for the
+   * given SQL time.
+   *
+   * <p>For backwards compatibility, timezone offsets are calculated in relation to the local
+   * timezone instead of UTC. Providing the default timezone or {@code null} will return the time
+   * unmodified.
+   */
+  public static int sqlTimeToUnixTime(Time time, TimeZone timeZone) {
+    long unixTime = time.getTime();
+    if (timeZone != null) {
+      unixTime += timeZone.getOffset(unixTime);
+    }
+    return (int) Math.floorMod(unixTime, MILLIS_PER_DAY);
+  }
+
+  /**
+   * Converts the given unix time to a SQL time.
+   *
+   * <p>The unix time should be the number of milliseconds since the previous day in UTC.
+   *
+   * <p>For backwards compatibility, timezone offsets are calculated in relation to the local
+   * timezone instead of UTC. Providing the default timezone or {@code null} will return the time
+   * unmodified.
+   */
+  public static Time unixTimeToSqlTime(int time, Calendar calendar) {
+    if (calendar != null) {
+      time -= calendar.getTimeZone().getOffset(time);
+    }
+    return new Time(time);
+  }
+
+  /**
+   * Calculates the unix date as the number of milliseconds since January 1st, 1970 UTC for the
+   * given SQL timestamp.
+   *
+   * @see #sqlTimestampToUnixTimestamp(Timestamp, TimeZone)
+   */
+  public static long sqlTimestampToUnixTimestamp(Timestamp timestamp, Calendar calendar) {
+    return sqlTimestampToUnixTimestamp(timestamp, calendar != null ? calendar.getTimeZone() : null);
+  }
+
+  /**
+   * Calculates the unix date as the number of milliseconds since January 1st, 1970 UTC for the
+   * given SQL timestamp.
+   *
+   * <p>The {@link Timestamp} class uses the standard Gregorian calendar which switches from the
+   * Julian calendar to the Gregorian calendar in October 1582. For compatibility with ISO-8601,
+   * the value is converted to a {@link LocalDateTime} which uses the proleptic Gregorian calendar.
+   *
+   * <p>For backwards compatibility, timezone offsets are calculated in relation to the local
+   * timezone instead of UTC. Providing the default timezone or {@code null} will return the
+   * timestamp unmodified.
+   */
+  public static long sqlTimestampToUnixTimestamp(Timestamp timestamp, TimeZone timeZone) {
+    final long time = timestamp.getTime();
+
+    // Convert SQL timestamp from standard Gregorian calendar to ISO calendar system
+    final LocalDateTime dateTime = timestamp.toLocalDateTime();
+    long unixTimestamp = dateTime.toEpochSecond(ZoneOffset.UTC)
+        * DateTimeUtils.MILLIS_PER_SECOND
+        + dateTime.get(ChronoField.MILLI_OF_SECOND);
+
+    // Calculate timezone offset in relation to local time
+    if (timeZone != null) {
+      unixTimestamp += timeZone.getOffset(time);
+    }
+    unixTimestamp -= DEFAULT_ZONE.getOffset(time);
+
+    return unixTimestamp;
+  }
+
+  /**
+   * Converts the given unix timestamp to a SQL timestamp.
+   *
+   * <p>The unix timestamp should be the number of milliseconds since January 1st, 1970 UTC using
+   * the proleptic Gregorian calendar as defined by ISO-8601. The returned {@link Timestamp} object
+   * will use the standard Gregorian calendar which switches from the Julian calendar to the
+   * Gregorian calendar in October 1582. This conversion is handled by the {@link Timestamp} class
+   * when converting from a {@link LocalDateTime} object.
+   *
+   * <p>For backwards compatibility, timezone offsets are calculated in relation to the local
+   * timezone instead of UTC. Providing the default timezone or {@code null} will return the
+   * timestamp unmodified.
+   */
+  public static Timestamp unixTimestampToSqlTimestamp(long timestamp, Calendar calendar) {
+    // Convert unix timestamp from the ISO calendar system to the standard Gregorian calendar
+    final LocalDateTime localDateTime = LocalDateTime.ofEpochSecond(
+        Math.floorDiv(timestamp, DateTimeUtils.MILLIS_PER_SECOND),
+        (int) (Math.floorMod(timestamp, DateTimeUtils.MILLIS_PER_SECOND) * NANOS_PER_MILLI),
+        ZoneOffset.UTC);
+    final Timestamp sqlTimestamp = Timestamp.valueOf(localDateTime);
+
+    // Calculate timezone offset in relation to local time
+    final long time = sqlTimestamp.getTime();
+    final int offset = calendar != null ? calendar.getTimeZone().getOffset(time) : 0;
+    sqlTimestamp.setTime(time + DEFAULT_ZONE.getOffset(time) - offset);
+
+    return sqlTimestamp;
   }
 
   //~ Inner Classes ----------------------------------------------------------

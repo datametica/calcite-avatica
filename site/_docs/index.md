@@ -25,7 +25,7 @@ limitations under the License.
 Avatica is a framework for building JDBC and ODBC drivers for databases,
 and an RPC wire protocol.
 
-![Avatica Architecture](https://raw.githubusercontent.com/julianhyde/share/master/slides/avatica-architecture.png)
+![Avatica Architecture](https://raw.githubusercontent.com/julianhyde/share/main/slides/avatica-architecture.png)
 
 Avatica's Java binding has very few dependencies.
 Even though it is part of Apache Calcite it does not depend on other parts of
@@ -169,11 +169,11 @@ highly welcomed!
 * *Maintainer*: Apache Calcite community
 
 ### Apache Phoenix database adapter for Python
-* [Home page](https://bitbucket.org/lalinsky/python-phoenixdb)
+* [Home page](https://phoenix.apache.org/python.html)
 * Language: Python
 * *License*: [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0)
-* Avatica version 1.2.0 to 1.6.0
-* *Maintainer*: Lukáš Lalinský
+* Avatica version 1.2.0 onwards
+* *Maintainer*: Apache Phoenix community
 
 ### JavaScript binding to Calcite Avatica Server
 * [Home page](https://github.com/waylayio/avatica-js)
@@ -181,3 +181,10 @@ highly welcomed!
 * *License*: [MIT](https://opensource.org/licenses/MIT)
 * Any Avatica version
 * *Maintainer*: Waylay.io
+
+### Calcite Avatica CLI: A Go-based Toool
+* [Home page](https://github.com/satyakommula96/calcite-cli)
+* Language: Go
+* *License*: [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+* Avatica version 1.8.0 onwards
+* *Maintainer*: [Satya Kommula](https://github.com/satyakommula96)

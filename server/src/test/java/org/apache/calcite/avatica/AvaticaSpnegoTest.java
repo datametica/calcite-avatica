@@ -49,6 +49,14 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * End to end test case for SPNEGO with Avatica.
+ *
+ * <p>The following system properties are useful for debugging problems around SPNEGO.</p>
+ * <ul>
+ *   <li>sun.security.krb5.debug</li>
+ *   <li>sun.security.jgss.debug</li>
+ *   <li>sun.security.spnego.debug</li>
+ *   <li>java.security.debug</li>
+ * </ul>
  */
 @RunWith(Parameterized.class)
 public class AvaticaSpnegoTest extends HttpBaseTest {
@@ -108,9 +116,9 @@ public class AvaticaSpnegoTest extends HttpBaseTest {
     clientConfig.setString(KrbConfigKey.DEFAULT_REALM, SpnegoTestUtil.REALM);
 
     // Kerby sets "java.security.krb5.conf" for us!
+    // useSubjectCredsOnly is only important when we expect JAAS to go "looking"
+    // for credentials on our behalf.
     System.setProperty("javax.security.auth.useSubjectCredsOnly", "false");
-    //System.setProperty("sun.security.spnego.debug", "true");
-    //System.setProperty("sun.security.krb5.debug", "true");
   }
 
   @AfterClass public static void stopKdc() throws KrbException {

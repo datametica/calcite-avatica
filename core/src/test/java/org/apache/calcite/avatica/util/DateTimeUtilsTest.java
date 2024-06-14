@@ -16,33 +16,49 @@
  */
 package org.apache.calcite.avatica.util;
 
+import org.hamcrest.Matcher;
 import org.junit.Test;
 
 import java.math.BigDecimal;
+import java.sql.Time;
+import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.temporal.IsoFields;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.Locale;
+import java.util.TimeZone;
 
 import static org.apache.calcite.avatica.util.DateTimeUtils.EPOCH_JULIAN;
+import static org.apache.calcite.avatica.util.DateTimeUtils.MILLIS_PER_DAY;
+import static org.apache.calcite.avatica.util.DateTimeUtils.MILLIS_PER_HOUR;
+import static org.apache.calcite.avatica.util.DateTimeUtils.MILLIS_PER_SECOND;
 import static org.apache.calcite.avatica.util.DateTimeUtils.addMonths;
 import static org.apache.calcite.avatica.util.DateTimeUtils.dateStringToUnixDate;
 import static org.apache.calcite.avatica.util.DateTimeUtils.digitCount;
-import static org.apache.calcite.avatica.util.DateTimeUtils.floorDiv;
-import static org.apache.calcite.avatica.util.DateTimeUtils.floorMod;
 import static org.apache.calcite.avatica.util.DateTimeUtils.intervalDayTimeToString;
 import static org.apache.calcite.avatica.util.DateTimeUtils.intervalYearMonthToString;
+import static org.apache.calcite.avatica.util.DateTimeUtils.sqlDateToUnixDate;
+import static org.apache.calcite.avatica.util.DateTimeUtils.sqlTimeToUnixTime;
+import static org.apache.calcite.avatica.util.DateTimeUtils.sqlTimestampToUnixTimestamp;
 import static org.apache.calcite.avatica.util.DateTimeUtils.subtractMonths;
 import static org.apache.calcite.avatica.util.DateTimeUtils.timeStringToUnixDate;
 import static org.apache.calcite.avatica.util.DateTimeUtils.timestampStringToUnixDate;
 import static org.apache.calcite.avatica.util.DateTimeUtils.unixDateCeil;
 import static org.apache.calcite.avatica.util.DateTimeUtils.unixDateExtract;
 import static org.apache.calcite.avatica.util.DateTimeUtils.unixDateFloor;
+import static org.apache.calcite.avatica.util.DateTimeUtils.unixDateToSqlDate;
 import static org.apache.calcite.avatica.util.DateTimeUtils.unixDateToString;
 import static org.apache.calcite.avatica.util.DateTimeUtils.unixTimeExtract;
+import static org.apache.calcite.avatica.util.DateTimeUtils.unixTimeToSqlTime;
 import static org.apache.calcite.avatica.util.DateTimeUtils.unixTimeToString;
 import static org.apache.calcite.avatica.util.DateTimeUtils.unixTimestamp;
 import static org.apache.calcite.avatica.util.DateTimeUtils.unixTimestampExtract;
+import static org.apache.calcite.avatica.util.DateTimeUtils.unixTimestampToSqlTimestamp;
 import static org.apache.calcite.avatica.util.DateTimeUtils.unixTimestampToString;
+import static org.apache.calcite.avatica.util.DateTimeUtils.unixTimestampToUtilDate;
+import static org.apache.calcite.avatica.util.DateTimeUtils.utilDateToUnixTimestamp;
 import static org.apache.calcite.avatica.util.DateTimeUtils.ymdToJulian;
 import static org.apache.calcite.avatica.util.DateTimeUtils.ymdToUnixDate;
 
@@ -50,15 +66,17 @@ import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 /**
  * Tests for {@link DateTimeUtils}.
  */
 public class DateTimeUtilsTest {
+  private static final Calendar CALENDAR = Calendar.getInstance(TimeZone.getDefault(), Locale.ROOT);
+
   @Test public void testEasyLog10() {
     assertEquals(1, digitCount(0));
     assertEquals(1, digitCount(1));
@@ -69,28 +87,30 @@ public class DateTimeUtilsTest {
     assertEquals(3, digitCount(100));
   }
 
+  @SuppressWarnings("deprecation")
   @Test public void testFloorDiv() {
-    assertThat(floorDiv(13, 3), equalTo(4L));
-    assertThat(floorDiv(12, 3), equalTo(4L));
-    assertThat(floorDiv(11, 3), equalTo(3L));
-    assertThat(floorDiv(-13, 3), equalTo(-5L));
-    assertThat(floorDiv(-12, 3), equalTo(-4L));
-    assertThat(floorDiv(-11, 3), equalTo(-4L));
-    assertThat(floorDiv(0, 3), equalTo(0L));
-    assertThat(floorDiv(1, 3), equalTo(0L));
-    assertThat(floorDiv(-1, 3), is(-1L));
+    assertThat(DateTimeUtils.floorDiv(13, 3), equalTo(4L));
+    assertThat(DateTimeUtils.floorDiv(12, 3), equalTo(4L));
+    assertThat(DateTimeUtils.floorDiv(11, 3), equalTo(3L));
+    assertThat(DateTimeUtils.floorDiv(-13, 3), equalTo(-5L));
+    assertThat(DateTimeUtils.floorDiv(-12, 3), equalTo(-4L));
+    assertThat(DateTimeUtils.floorDiv(-11, 3), equalTo(-4L));
+    assertThat(DateTimeUtils.floorDiv(0, 3), equalTo(0L));
+    assertThat(DateTimeUtils.floorDiv(1, 3), equalTo(0L));
+    assertThat(DateTimeUtils.floorDiv(-1, 3), is(-1L));
   }
 
+  @SuppressWarnings("deprecation")
   @Test public void testFloorMod() {
-    assertThat(floorMod(13, 3), is(1L));
-    assertThat(floorMod(12, 3), is(0L));
-    assertThat(floorMod(11, 3), is(2L));
-    assertThat(floorMod(-13, 3), is(2L));
-    assertThat(floorMod(-12, 3), is(0L));
-    assertThat(floorMod(-11, 3), is(1L));
-    assertThat(floorMod(0, 3), is(0L));
-    assertThat(floorMod(1, 3), is(1L));
-    assertThat(floorMod(-1, 3), is(2L));
+    assertThat(DateTimeUtils.floorMod(13, 3), is(1L));
+    assertThat(DateTimeUtils.floorMod(12, 3), is(0L));
+    assertThat(DateTimeUtils.floorMod(11, 3), is(2L));
+    assertThat(DateTimeUtils.floorMod(-13, 3), is(2L));
+    assertThat(DateTimeUtils.floorMod(-12, 3), is(0L));
+    assertThat(DateTimeUtils.floorMod(-11, 3), is(1L));
+    assertThat(DateTimeUtils.floorMod(0, 3), is(0L));
+    assertThat(DateTimeUtils.floorMod(1, 3), is(1L));
+    assertThat(DateTimeUtils.floorMod(-1, 3), is(2L));
   }
 
   @Test public void testTimeUnitRange() {
@@ -225,6 +245,8 @@ public class DateTimeUtilsTest {
   }
 
   @Test public void testTimeToString() {
+    checkTimeString("00", "00:00:00", 0, 0);
+    checkTimeString("00:00", "00:00:00", 0, 0);
     checkTimeString("00:00:00", 0, 0);
     checkTimeString("23:59:59", 0, 86400000 - 1000);
     checkTimeString("23:59:59.1", 1, 86400000 - 1000 + 100);
@@ -270,13 +292,17 @@ public class DateTimeUtilsTest {
   }
 
   private void checkTimeString(String s, int p, int d) {
-    int digitsAfterPoint = s.indexOf('.') >= 0
-        ? s.length() - s.indexOf('.') - 1
+    checkTimeString(s, s, p, d);
+  }
+
+  private void checkTimeString(String string, String expectedString, int p, int d) {
+    int digitsAfterPoint = string.indexOf('.') >= 0
+        ? string.length() - string.indexOf('.') - 1
         : 0;
     if (digitsAfterPoint == p) {
-      assertThat(unixTimeToString(d, p), is(s));
+      assertThat(unixTimeToString(d, p), is(expectedString));
     }
-    assertThat(timeStringToUnixDate(s), is(d));
+    assertThat(timeStringToUnixDate(string), is(d));
   }
 
   @Test public void testTimestampToString() {
@@ -497,6 +523,9 @@ public class DateTimeUtilsTest {
     thereAndBack(1901, 1, 1);
     thereAndBack(1901, 2, 28); // no leap day
     thereAndBack(1901, 3, 1);
+    thereAndBack(1902, 1, 1);
+    thereAndBack(1903, 1, 1);
+    thereAndBack(1904, 1, 1);
     thereAndBack(2000, 1, 1);
     thereAndBack(2000, 2, 28);
     thereAndBack(2000, 2, 29); // leap day
@@ -761,12 +790,10 @@ public class DateTimeUtilsTest {
     checkDateString("0200-01-01", d200);
     final int d100 = d200 - century + 1;
     checkDateString("0100-01-01", d100);
-    final int d000 = d100 - century;
-    checkDateString("0000-01-01", d000);
   }
 
   @Test public void testDateConversion() {
-    for (int i = 0; i < 4000; ++i) {
+    for (int i = 1; i < 4000; ++i) {
       for (int j = 1; j <= 12; ++j) {
         String date = String.format(Locale.ENGLISH, "%04d-%02d-28", i, j);
         assertThat(unixDateToString(ymdToUnixDate(i, j, 28)), is(date));
@@ -776,6 +803,8 @@ public class DateTimeUtilsTest {
 
   private void thereAndBack(int year, int month, int day) {
     final int unixDate = ymdToUnixDate(year, month, day);
+    final LocalDate javaDate = LocalDate.of(year, month, day); // ref impl
+
     assertThat(unixDateExtract(TimeUnitRange.YEAR, unixDate),
         is((long) year));
     assertThat(unixDateExtract(TimeUnitRange.MONTH, unixDate),
@@ -784,22 +813,48 @@ public class DateTimeUtilsTest {
         is((long) day));
     final long isoYear = unixDateExtract(TimeUnitRange.ISOYEAR, unixDate);
     assertTrue(isoYear >= year - 1 && isoYear <= year + 1);
+    assertThat(isoYear, is((long) javaDate.get(IsoFields.WEEK_BASED_YEAR)));
+
     final long w = unixDateExtract(TimeUnitRange.WEEK, unixDate);
     assertTrue(w >= 1 && w <= 53);
+    assertThat(w, is((long) javaDate.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)));
+
     final long dow = unixDateExtract(TimeUnitRange.DOW, unixDate);
     assertTrue(dow >= 1 && dow <= 7);
     final long iso_dow = unixDateExtract(TimeUnitRange.ISODOW, unixDate);
     assertTrue(iso_dow >= 1 && iso_dow <= 7);
+
+    final long isoYearFloor = unixDateFloor(TimeUnitRange.ISOYEAR, unixDate);
+    assertThat(unixDateExtract(TimeUnitRange.ISOYEAR, isoYearFloor),
+        is(isoYear));
+    assertThat(unixDateExtract(TimeUnitRange.ISOYEAR, isoYearFloor - 1),
+        is(isoYear - 1));
+
+    final long isoYearCeil = unixDateCeil(TimeUnitRange.ISOYEAR, unixDate);
+    if (isoYearFloor == unixDate) {
+      assertThat(unixDateExtract(TimeUnitRange.ISOYEAR, isoYearCeil),
+          is(isoYear));
+      assertThat(unixDateExtract(TimeUnitRange.ISOYEAR, isoYearCeil - 1),
+          is(isoYear - 1));
+    } else {
+      assertThat(unixDateExtract(TimeUnitRange.ISOYEAR, isoYearCeil),
+          is(isoYear + 1));
+      assertThat(unixDateExtract(TimeUnitRange.ISOYEAR, isoYearCeil - 1),
+          is(isoYear));
+    }
+
     final long doy = unixDateExtract(TimeUnitRange.DOY, unixDate);
     assertTrue(doy >= 1 && doy <= 366);
     final long q = unixDateExtract(TimeUnitRange.QUARTER, unixDate);
     assertTrue(q >= 1 && q <= 4);
     final long d = unixDateExtract(TimeUnitRange.DECADE, unixDate);
-    assertTrue(d == year / 10);
+    assertThat(d, is((long) year / 10));
     final long c = unixDateExtract(TimeUnitRange.CENTURY, unixDate);
-    assertTrue(c == (year > 0 ? (year + 99) / 100 : (year - 99) / 100));
+    assertThat(c,
+        is(year > 0 ? ((long) year + 99) / 100 : ((long) year - 99) / 100));
     final long m = unixDateExtract(TimeUnitRange.MILLENNIUM, unixDate);
-    assertTrue(m == (year > 0 ? (year + 999) / 1000 : (year - 999) / 1000));
+    assertThat(m,
+        is(year > 0 ? ((long) year + 999) / 1000 : ((long) year - 999) / 1000));
   }
 
   @Test public void testAddMonths() {
@@ -808,12 +863,14 @@ public class DateTimeUtilsTest {
     checkAddMonths(2016, 1, 1, 2017, 2, 1, 13);
     checkAddMonths(2016, 1, 1, 2015, 1, 1, -12);
     checkAddMonths(2016, 1, 1, 2018, 10, 1, 33);
-    checkAddMonths(2016, 1, 31, 2016, 5, 1, 3); // roll up
-    checkAddMonths(2016, 4, 30, 2016, 7, 30, 3); // roll up
-    checkAddMonths(2016, 1, 31, 2016, 3, 1, 1);
-    checkAddMonths(2016, 3, 31, 2016, 3, 1, -1);
+    checkAddMonths(2016, 1, 31, 2016, 4, 30, 3);
+    checkAddMonths(2016, 4, 30, 2016, 7, 30, 3);
+    checkAddMonths(2016, 1, 31, 2016, 2, 29, 1);
+    checkAddMonths(2016, 3, 31, 2016, 2, 29, -1);
     checkAddMonths(2016, 3, 31, 2116, 3, 31, 1200);
     checkAddMonths(2016, 2, 28, 2116, 2, 28, 1200);
+    checkAddMonths(2019, 9, 1, 2020, 3, 1, 6);
+    checkAddMonths(2019, 9, 1, 2016, 8, 1, -37);
   }
 
   private void checkAddMonths(int y0, int m0, int d0, int y1, int m1, int d1,
@@ -824,13 +881,13 @@ public class DateTimeUtilsTest {
     assertThat((int) date, is(date1));
 
     assertThat(subtractMonths(date1, date0),
-        anyOf(is(months), is(months + 1)));
+        anyOf(is(months - 1), is(months), is(months + 1)));
     assertThat(subtractMonths(date1 + 1, date0),
         anyOf(is(months), is(months + 1)));
     assertThat(subtractMonths(date1, date0 + 1),
         anyOf(is(months), is(months - 1)));
     assertThat(subtractMonths(d2ts(date1, 1), d2ts(date0, 0)),
-        anyOf(is(months), is(months + 1)));
+        anyOf(is(months - 1), is(months), is(months + 1)));
     assertThat(subtractMonths(d2ts(date1, 0), d2ts(date0, 1)),
         anyOf(is(months - 1), is(months), is(months + 1)));
   }
@@ -839,6 +896,60 @@ public class DateTimeUtilsTest {
    * into a timestamp (milliseconds since epoch). */
   private long d2ts(int date, int millis) {
     return date * DateTimeUtils.MILLIS_PER_DAY + millis;
+  }
+
+  @Test public void testSubtractMonths() {
+    assertThat(subtractMonths(
+            ymdToUnixDate(2004, 9, 11),
+            ymdToUnixDate(2004, 9, 11)), is(0));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2005, 9, 11),
+            ymdToUnixDate(2004, 9, 11)), is(12));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2006, 9, 11),
+            ymdToUnixDate(2004, 9, 11)), is(24));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2007, 9, 11),
+            ymdToUnixDate(2004, 9, 11)), is(36));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2004, 9, 11),
+            ymdToUnixDate(2005, 9, 11)), is(-12));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2003, 9, 11),
+            ymdToUnixDate(2005, 9, 11)), is(-24));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2005, 2, 28),
+            ymdToUnixDate(2004, 2, 28)), is(12));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2005, 2, 28),
+            ymdToUnixDate(2004, 2, 29)), is(11));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2005, 2, 28),
+            ymdToUnixDate(2004, 2, 28)), is(12));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2005, 3, 28),
+            ymdToUnixDate(2004, 3, 29)), is(11));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2004, 2, 29),
+            ymdToUnixDate(2003, 2, 28)), is(12));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2005, 2, 28),
+            ymdToUnixDate(2003, 2, 28)), is(24));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2001, 10, 10),
+            ymdToUnixDate(1999, 9, 11)), is(24));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2001, 9, 11),
+            ymdToUnixDate(1999, 9, 11)), is(24));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2001, 5, 1),
+            ymdToUnixDate(2001, 2, 1)), is(3));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2000, 2, 29),
+            ymdToUnixDate(2000, 3, 28)), is(0));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2000, 2, 29),
+            ymdToUnixDate(1991, 3, 28)), is(107));
   }
 
   @Test public void testUnixTimestamp() {
@@ -903,10 +1014,21 @@ public class DateTimeUtilsTest {
   }
 
   @Test public void testUnixDateFloorCeil() {
+    final long y1001 = ymdToUnixDate(1001, 1, 1);
+    final long y1801 = -(169 * 365 + 169 / 4 - 1);
+    final long y1890 = -(80 * 365 + 80 / 4 - 1);
     final long y1900 = -(70 * 365 + 70 / 4);
-    final long y1900_0102 = y1900 + 1;
     final long y1899 = y1900 - 365;
     final long y1901 = y1900 + 365;
+    final long y1902 = y1901 + 365;
+    final long y1903 = y1902 + 365;
+    final long y1904 = y1903 + 365;
+    final long y1905 = y1904 + 366;
+    final long y1906 = y1905 + 365;
+    final long y1907 = y1903 + 4 * 365 + 1;
+    final long y1910 = -(60 * 365 + 60 / 4);
+    final long y2001 = 31 * 365 + 31 / 4 + 1;
+    final long y1900_0102 = y1900 + 1;
     final long y1900_0506 = y1900 - 1 + 31 + 28 + 31 + 30 + 6; // sunday
     final long y1900_0512 = y1900 - 1 + 31 + 28 + 31 + 30 + 12; // saturday
     final long y1900_0513 = y1900 - 1 + 31 + 28 + 31 + 30 + 13; // sunday
@@ -918,10 +1040,36 @@ public class DateTimeUtilsTest {
     final long y1900_0701 = y1900 - 1 + 31 + 28 + 31 + 30 + 31 + 30 + 1;
     final long y1900_1001 = y1900 - 1 + 31 + 28 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 1;
     final long y1900_1002 = y1900 - 1 + 31 + 28 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 2;
+    final long y1900_1231 = y1901 - 1;
+    final long y1902_1229 = y1903 - 3;
+    final long y1904_0103 = y1904 + 2;
+    final long y1904_0104 = y1904 + 3;
+    checkDateString("1801-01-01", (int) y1801);
     checkDateString("1900-01-01", (int) y1900);
     checkDateString("1900-01-02", (int) y1900_0102);
     checkDateString("1899-01-01", (int) y1899);
     checkDateString("1901-01-01", (int) y1901);
+    checkDateString("1902-01-01", (int) y1902);
+    checkDateString("1902-12-29", (int) y1902_1229);
+    checkDateString("1903-01-01", (int) y1903);
+    checkDateString("1904-01-01", (int) y1904);
+    checkDateString("1904-01-03", (int) y1904_0103);
+    checkDateString("1904-01-04", (int) y1904_0104);
+    checkDateString("1905-01-01", (int) y1905);
+    checkDateString("1906-01-01", (int) y1906);
+    checkDateString("1907-01-01", (int) y1907);
+    checkDateString("1910-01-01", (int) y1910);
+    checkDateString("2001-01-01", (int) y2001);
+    assertThat(unixDateFloor(TimeUnitRange.MILLENNIUM, y1907), is(y1001));
+    assertThat(unixDateCeil(TimeUnitRange.MILLENNIUM, y1907), is(y2001));
+    assertThat(unixDateFloor(TimeUnitRange.CENTURY, y1899), is(y1801));
+    assertThat(unixDateCeil(TimeUnitRange.CENTURY, y1899), is(y1901));
+    assertThat(unixDateFloor(TimeUnitRange.DECADE, y1899), is(y1890));
+    assertThat(unixDateFloor(TimeUnitRange.DECADE, y1900_0701), is(y1900));
+    assertThat(unixDateFloor(TimeUnitRange.DECADE, y1907), is(y1900));
+    assertThat(unixDateCeil(TimeUnitRange.DECADE, y1899), is(y1900));
+    assertThat(unixDateCeil(TimeUnitRange.DECADE, y1900_0701), is(y1910));
+    assertThat(unixDateCeil(TimeUnitRange.DECADE, y1907), is(y1910));
     assertThat(unixDateFloor(TimeUnitRange.YEAR, y1900_0102), is(y1900));
     assertThat(unixDateCeil(TimeUnitRange.YEAR, y1900_0102), is(y1901));
     assertThat(unixDateFloor(TimeUnitRange.QUARTER, y1900_0514), is(y1900_0401));
@@ -942,6 +1090,686 @@ public class DateTimeUtilsTest {
     assertThat(unixDateCeil(TimeUnitRange.WEEK, y1900_0512), is(y1900_0513));
     assertThat(unixDateFloor(TimeUnitRange.DAY, y1900_0514), is(y1900_0514));
     assertThat(unixDateCeil(TimeUnitRange.DAY, y1900_0514), is(y1900_0514));
+
+    // 1900/01/01 is a Monday, therefore the first day of the ISO year;
+    // the next ISO year starts on 1900/12/31
+    assertThat(unixDateFloor(TimeUnitRange.ISOYEAR, y1900), is(y1900));
+    assertThat(unixDateCeil(TimeUnitRange.ISOYEAR, y1900), is(y1900));
+    assertThat(unixDateFloor(TimeUnitRange.ISOYEAR, y1900_0102), is(y1900));
+    assertThat(unixDateCeil(TimeUnitRange.ISOYEAR, y1900_0102), is(y1900_1231));
+    assertThat(unixDateFloor(TimeUnitRange.ISOYEAR, y1900_1231), is(y1900_1231));
+    assertThat(unixDateCeil(TimeUnitRange.ISOYEAR, y1900_1231), is(y1900_1231));
+    assertThat(unixDateFloor(TimeUnitRange.ISOYEAR, y1901), is(y1900_1231));
+    assertThat(unixDateFloor(TimeUnitRange.ISOYEAR, y1903), is(y1902_1229));
+
+    // 1904/01/01 is a Friday, the next ISO year starts on Mon 1904/01/04,
+    // the previous ISO year started on 1902/12/29.
+    assertThat(unixDateFloor(TimeUnitRange.ISOYEAR, y1904), is(y1902_1229));
+    assertThat(unixDateFloor(TimeUnitRange.ISOYEAR, y1904_0103), is(y1902_1229));
+    assertThat(unixDateFloor(TimeUnitRange.ISOYEAR, y1904_0104), is(y1904_0104));
+    assertThat(unixDateFloor(TimeUnitRange.ISOYEAR, y1905), is(y1904_0104));
+
+    // 1906/01/01 is a Monday.
+    assertThat(unixDateFloor(TimeUnitRange.ISOYEAR, y1906), is(y1906));
+  }
+
+  /**
+   * Test that a date in the local time zone converts to a unix timestamp in UTC.
+   */
+  @Test public void testSqlDateToUnixDateWithLocalTimeZone() {
+    assertThat(sqlDateToUnixDate(java.sql.Date.valueOf("1970-01-01"), CALENDAR), is(0));
+    assertThat(sqlDateToUnixDate(java.sql.Date.valueOf("1500-04-30"), CALENDAR),
+        is(dateStringToUnixDate("1500-04-30")));
+  }
+
+  /**
+   * Test rounding up dates before the unix epoch (1970-01-01).
+   *
+   * <p>Calcite depends on this rounding behaviour for some of its tests. This ensures that
+   * {@code new Date(0L)} will return "1970-01-01" regardless of the default timezone.
+   */
+  @Test public void testSqlDateToUnixDateRounding() {
+    final java.sql.Date partial = java.sql.Date.valueOf("1969-12-31");
+    partial.setTime(partial.getTime() + 1);
+    assertThat(sqlDateToUnixDate(partial, CALENDAR), is(0));
+  }
+
+  /**
+   * Test that no time zone conversion happens when the given calendar is {@code null}.
+   */
+  @Test public void testSqlDateToUnixDateWithNullCalendar() {
+    assertThat(sqlDateToUnixDate(new java.sql.Date(0L), (Calendar) null), is(0));
+    assertThat(sqlDateToUnixDate(new java.sql.Date(-MILLIS_PER_DAY), (Calendar) null), is(-1));
+
+    final Calendar julianCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+    julianCal.set(1500, Calendar.APRIL, 30, 0, 0, 0);
+    julianCal.set(Calendar.MILLISECOND, 0);
+    assertThat(
+        sqlDateToUnixDate(new java.sql.Date(julianCal.getTimeInMillis()), (Calendar) null),
+        is(-171545 /* 1500-04-30 in ISO calendar */));
+  }
+
+  /**
+   * Test using a custom {@link Calendar} to calculate the unix timestamp. Dates created by a
+   * {@link Calendar} should be converted to a unix date in the given time zone. Dates created by a
+   * {@link java.sql.Date} method should be converted relative to the local time and not UTC.
+   */
+  @Test public void testSqlDateToUnixDateWithCustomCalendar() {
+    final java.sql.Date epoch = java.sql.Date.valueOf("1970-01-01");
+
+    final Calendar utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+    utcCal.set(1970, Calendar.JANUARY, 1, 0, 0, 0);
+    utcCal.set(Calendar.MILLISECOND, 0);
+    assertThat(sqlDateToUnixDate(new java.sql.Date(utcCal.getTimeInMillis()), utcCal), is(0));
+
+    final TimeZone minusDayZone = TimeZone.getDefault();
+    minusDayZone.setRawOffset((int) (minusDayZone.getRawOffset() - MILLIS_PER_DAY));
+    final Calendar minusDayCal = Calendar.getInstance(minusDayZone, Locale.ROOT);
+    assertThat(sqlDateToUnixDate(epoch, minusDayCal), is(-1));
+
+    final TimeZone plusDayZone = TimeZone.getDefault();
+    plusDayZone.setRawOffset((int) (plusDayZone.getRawOffset() + MILLIS_PER_DAY));
+    final Calendar plusDayCal = Calendar.getInstance(plusDayZone, Locale.ROOT);
+    assertThat(sqlDateToUnixDate(epoch, plusDayCal), is(1));
+  }
+
+  /**
+   * Test calendar conversion from the standard Gregorian calendar used by {@code java.sql} and the
+   * proleptic Gregorian calendar used by unix timestamps.
+   */
+  @Test public void testSqlDateToUnixDateWithGregorianShift() {
+    assertThat(sqlDateToUnixDate(java.sql.Date.valueOf("1582-10-04"), CALENDAR),
+        is(dateStringToUnixDate("1582-10-04")));
+    assertThat(sqlDateToUnixDate(java.sql.Date.valueOf("1582-10-05"), CALENDAR),
+        is(dateStringToUnixDate("1582-10-15")));
+    assertThat(sqlDateToUnixDate(java.sql.Date.valueOf("1582-10-15"), CALENDAR),
+        is(dateStringToUnixDate("1582-10-15")));
+  }
+
+  /**
+   * Test date range 0001-01-01 to 9999-12-31 required by ANSI SQL.
+   *
+   * <p>Java may not be able to represent 0001-01-01 UTC depending on the default time zone. If the
+   * date would fall outside of Anno Domini (AD) when converted to the default time zone, that date
+   * should not be tested.
+   *
+   * <p>Not every time zone has a January 1st 12:00am, so this test only uses the UTC Time zone.
+   */
+  @Test public void testSqlDateToUnixDateWithAnsiDateRange() {
+    final Calendar ansiCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+
+    // Test 0001-01-02 UTC to avoid issues with Java modifying 0001-01-01 when outside AD
+    ansiCal.set(1, Calendar.JANUARY, 2, 0, 0, 0);
+    ansiCal.set(Calendar.MILLISECOND, 0);
+    assertThat("Converts 0001-01-02 from SQL to unix date",
+        sqlDateToUnixDate(new java.sql.Date(ansiCal.getTimeInMillis()), ansiCal),
+        is(dateStringToUnixDate("0001-01-02")));
+
+    // Test remaining years 0002-01-01 to 9999-01-01
+    ansiCal.set(Calendar.DATE, 1);
+    for (int i = 2; i <= 9999; ++i) {
+      final String str = String.format(Locale.ROOT, "%04d-01-01", i);
+      ansiCal.set(Calendar.YEAR, i);
+      assertThat("Converts '" + str + "' from SQL to unix date",
+          sqlDateToUnixDate(new java.sql.Date(ansiCal.getTimeInMillis()), ansiCal),
+          is(dateStringToUnixDate(str)));
+    }
+
+    // Test end of range 9999-12-31
+    ansiCal.set(9999, Calendar.DECEMBER, 31, 0, 0, 0);
+    ansiCal.set(Calendar.MILLISECOND, 0);
+    assertThat("Converts 9999-12-31 from SQL to unix date",
+        sqlDateToUnixDate(new java.sql.Date(ansiCal.getTimeInMillis()), ansiCal),
+        is(dateStringToUnixDate("9999-12-31")));
+  }
+
+  /**
+   * Test that a unix timestamp converts to a date in the local time zone.
+   */
+  @Test public void testUnixDateToSqlDateWithLocalTimeZone() {
+    assertThat(unixDateToSqlDate(0, CALENDAR), is(java.sql.Date.valueOf("1970-01-01")));
+    assertThat(unixDateToSqlDate(dateStringToUnixDate("1500-04-30"), CALENDAR),
+        is(java.sql.Date.valueOf("1500-04-30")));
+  }
+
+  /**
+   * Test that no time zone conversion happens when the given calendar is {@code null}.
+   */
+  @Test public void testUnixDateToSqlDateWithNullCalendar() {
+    assertThat(unixDateToSqlDate(0, null), is(new java.sql.Date(0L)));
+    assertThat(unixDateToSqlDate(-1, null), is(new java.sql.Date(-MILLIS_PER_DAY)));
+
+    final Calendar julianCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+    julianCal.set(1500, Calendar.APRIL, 30, 0, 0, 0);
+    julianCal.set(Calendar.MILLISECOND, 0);
+    assertThat(
+        unixDateToSqlDate(-171545 /* 1500-04-30 in ISO calendar */, null),
+        is(new java.sql.Date(julianCal.getTimeInMillis())));
+  }
+
+  /**
+   * Test using a custom {@link Calendar} to calculate the SQL date. Dates created by a
+   * {@link Calendar} should be converted to a SQL date in the given time zone. Otherwise, unix
+   * dates should be converted relative to the local time and not UTC.
+   */
+  @Test public void testUnixDateToSqlDateWithCustomCalendar() {
+    final Calendar utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+    utcCal.set(1970, Calendar.JANUARY, 1, 0, 0, 0);
+    utcCal.set(Calendar.MILLISECOND, 0);
+    assertThat(unixDateToSqlDate(0, utcCal).getTime(), is(utcCal.getTimeInMillis()));
+
+    final TimeZone minusFiveZone = TimeZone.getDefault();
+    minusFiveZone.setRawOffset((int) (minusFiveZone.getOffset(0L) - 5 * MILLIS_PER_HOUR));
+    final Calendar minusFiveCal = Calendar.getInstance(minusFiveZone, Locale.ROOT);
+    assertThat(unixDateToSqlDate(0, minusFiveCal).toString(), is("1970-01-01"));
+
+    final TimeZone plusFiveZone = TimeZone.getDefault();
+    plusFiveZone.setRawOffset((int) (plusFiveZone.getOffset(0L) + 5 * MILLIS_PER_HOUR));
+    final Calendar plusFiveCal = Calendar.getInstance(plusFiveZone, Locale.ROOT);
+    assertThat(unixDateToSqlDate(0, plusFiveCal).toString(), is("1969-12-31"));
+  }
+
+  /**
+   * Test calendar conversion from the standard Gregorian calendar used by {@code java.sql} and the
+   * proleptic Gregorian calendar used by unix timestamps.
+   */
+  @Test public void testUnixDateToSqlDateWithGregorianShift() {
+    assertThat(unixDateToSqlDate(dateStringToUnixDate("1582-10-04"), CALENDAR),
+        is(java.sql.Date.valueOf("1582-10-04")));
+    assertThat(unixDateToSqlDate(dateStringToUnixDate("1582-10-05"), CALENDAR),
+        is(java.sql.Date.valueOf("1582-10-15")));
+    assertThat(unixDateToSqlDate(dateStringToUnixDate("1582-10-15"), CALENDAR),
+        is(java.sql.Date.valueOf("1582-10-15")));
+  }
+
+  /**
+   * Test date range 0001-01-01 to 9999-12-31 required by ANSI SQL.
+   *
+   * <p>Java may not be able to represent all dates depending on the default time zone, but both
+   * the expected and actual assertion values handles that in the same way.
+   */
+  @Test public void testUnixDateToSqlDateWithAnsiDateRange() {
+    for (int i = 1; i <= 9999; ++i) {
+      final String str = String.format(Locale.ROOT, "%04d-01-01", i);
+      assertThat(unixDateToSqlDate(dateStringToUnixDate(str), CALENDAR),
+          is(java.sql.Date.valueOf(str)));
+    }
+
+    assertThat(unixDateToSqlDate(dateStringToUnixDate("9999-12-31"), CALENDAR),
+        is(java.sql.Date.valueOf("9999-12-31")));
+  }
+
+  /**
+   * Test that a {@link java.util.Date} in the local time zone converts to a unix timestamp in UTC.
+   */
+  @Test public void testUtilDateToUnixTimestampWithLocalTimeZone() {
+    final Date unixEpoch = new Date(-CALENDAR.getTimeZone().getOffset(0L));
+    assertThat(utilDateToUnixTimestamp(unixEpoch, CALENDAR), is(0L));
+
+    final long currentTime = System.currentTimeMillis();
+    final Date currentDate = new Date(currentTime);
+    assertThat(utilDateToUnixTimestamp(currentDate, CALENDAR),
+        is(currentTime + CALENDAR.getTimeZone().getOffset(currentTime)));
+  }
+
+  /**
+   * Test that no time zone conversion happens when the given calendar is {@code null}.
+   */
+  @Test public void testUtilDateToUnixTimestampWithNullCalendar() {
+    assertThat(utilDateToUnixTimestamp(new Date(0L), (Calendar) null),
+        is(0L));
+
+    final Calendar julianCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+    julianCal.set(1500, Calendar.APRIL, 30, 0, 0, 0);
+    julianCal.set(Calendar.MILLISECOND, 0);
+    assertThat(
+        utilDateToUnixTimestamp(new Date(julianCal.getTimeInMillis()), (Calendar) null),
+        is(-171545 * MILLIS_PER_DAY /* 1500-04-30 in ISO calendar */));
+  }
+
+  /**
+   * Test using a custom {@link Calendar} to calculate the unix timestamp. Dates created by a
+   * {@link Calendar} should be converted to a unix date in the given time zone.
+   */
+  @Test public void testUtilDateToUnixTimestampWithCustomCalendar() {
+    final Calendar utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+    utcCal.set(1970, Calendar.JANUARY, 1, 0, 0, 0);
+    utcCal.set(Calendar.MILLISECOND, 0);
+    assertThat(utilDateToUnixTimestamp(new Date(utcCal.getTimeInMillis()), utcCal), is(0L));
+  }
+
+  /**
+   * Test that a unix timestamp converts to a date in the local time zone.
+   */
+  @Test public void testUnixTimestampToUtilDateWithLocalTimeZone() {
+    final Date unixEpoch = new Date(-CALENDAR.getTimeZone().getOffset(0L));
+    assertThat(unixTimestampToUtilDate(0L, CALENDAR), is(unixEpoch));
+
+    final long currentTime = System.currentTimeMillis();
+    final Date currentDate = new Date(currentTime);
+    assertThat(unixTimestampToUtilDate(
+            currentTime + CALENDAR.getTimeZone().getOffset(currentTime),
+            CALENDAR),
+        is(currentDate));
+  }
+
+  /**
+   * Test that no time zone conversion happens when the given calendar is {@code null}.
+   */
+  @Test public void testUnixTimestampToUtilDateWithNullCalendar() {
+    assertThat(unixTimestampToUtilDate(0L, null), is(new Date(0L)));
+
+    final Calendar julianCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+    julianCal.set(1500, Calendar.APRIL, 30, 0, 0, 0);
+    julianCal.set(Calendar.MILLISECOND, 0);
+    assertThat(
+        unixTimestampToUtilDate(-171545 * MILLIS_PER_DAY /* 1500-04-30 in ISO calendar */, null),
+        is(new Date(julianCal.getTimeInMillis())));
+  }
+
+  /**
+   * Test using a custom {@link Calendar} to calculate the {@link Date}. Dates created by a
+   * {@link Calendar} should be converted to a {@link Date} in the given time zone.
+   */
+  @Test public void testUnixTimestampToUtilDateWithCustomCalendar() {
+    final Calendar utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+    utcCal.set(1970, Calendar.JANUARY, 1, 0, 0, 0);
+    utcCal.set(Calendar.MILLISECOND, 0);
+    assertThat(unixTimestampToUtilDate(0, utcCal).getTime(), is(utcCal.getTimeInMillis()));
+  }
+
+  /**
+   * Test that a time in the local time zone converts to a unix time in UTC.
+   */
+  @Test public void testSqlTimeToUnixTimeWithLocalTimeZone() {
+    assertEquals(0, sqlTimeToUnixTime(Time.valueOf("00:00:00"), CALENDAR));
+    assertEquals(MILLIS_PER_DAY - MILLIS_PER_SECOND,
+        sqlTimeToUnixTime(Time.valueOf("23:59:59"), CALENDAR));
+  }
+
+  /**
+   * Test that no time zone conversion happens when the given calendar is {@code null}.
+   */
+  @Test public void testSqlTimeToUnixTimeWithNullCalendar() {
+    assertEquals(0L, sqlTimeToUnixTime(new Time(0L), (Calendar) null));
+
+    final long endOfDay = MILLIS_PER_DAY - MILLIS_PER_SECOND;
+    assertEquals(endOfDay, sqlTimeToUnixTime(new Time(endOfDay), (Calendar) null));
+  }
+
+  /**
+   * Test using a custom {@link Calendar} to calculate the unix time. Times created by a
+   * {@link Calendar} should be converted to a unix time in the given time zone. Times created by a
+   * {@link Time} method should be converted relative to the local time and not UTC.
+   */
+  @Test public void testSqlTimeToUnixTimeWithCustomCalendar() {
+    final Time epoch = Time.valueOf("00:00:00");
+
+    final Calendar utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+    utcCal.set(1970, Calendar.JANUARY, 1, 0, 0, 0);
+    utcCal.set(Calendar.MILLISECOND, 0);
+    assertThat(sqlTimeToUnixTime(new Time(utcCal.getTimeInMillis()), utcCal), is(0));
+
+    final TimeZone minusFiveZone = TimeZone.getDefault();
+    minusFiveZone.setRawOffset((int) (minusFiveZone.getRawOffset() - 5 * MILLIS_PER_HOUR));
+    final Calendar minusFiveCal = Calendar.getInstance(minusFiveZone, Locale.ROOT);
+    assertEquals(19 * MILLIS_PER_HOUR, sqlTimeToUnixTime(epoch, minusFiveCal));
+
+    final TimeZone plusFiveZone = TimeZone.getDefault();
+    plusFiveZone.setRawOffset((int) (plusFiveZone.getRawOffset() + 5 * MILLIS_PER_HOUR));
+    final Calendar plusFiveCal = Calendar.getInstance(plusFiveZone, Locale.ROOT);
+    assertEquals(5 * MILLIS_PER_HOUR, sqlTimeToUnixTime(epoch, plusFiveCal));
+  }
+
+  /**
+   * Test that a unix time converts to a SQL time in the local time zone.
+   */
+  @Test public void testUnixTimeToSqlTimeWithLocalTimeZone() {
+    assertThat(unixTimeToSqlTime(0, CALENDAR), is(Time.valueOf("00:00:00")));
+    assertThat(unixTimeToSqlTime((int) (MILLIS_PER_DAY - MILLIS_PER_SECOND), CALENDAR),
+        is(Time.valueOf("23:59:59")));
+  }
+
+  /**
+   * Test that no time zone conversion happens when the given calendar is {@code null}.
+   */
+  @Test public void testUnixTimeToSqlTimeWithNullCalendar() {
+    assertThat(unixTimeToSqlTime(0, null), is(new Time(0L)));
+
+    final int endOfDay = (int) (MILLIS_PER_DAY - MILLIS_PER_SECOND);
+    assertThat(unixTimeToSqlTime(endOfDay, null), is(new Time(endOfDay)));
+  }
+
+  /**
+   * Test using a custom {@link Calendar} to calculate the SQL time. Times created by a
+   * {@link Calendar} should be converted to a SQL time in the given time zone. Otherwise, unix
+   * times should be converted relative to the local time and not UTC.
+   */
+  @Test public void testUnixTimeToSqlTimeWithCustomCalendar() {
+    final Calendar utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+    utcCal.set(1970, Calendar.JANUARY, 1, 0, 0, 0);
+    utcCal.set(Calendar.MILLISECOND, 0);
+    assertThat(unixTimeToSqlTime(0, utcCal).getTime(), is(utcCal.getTimeInMillis()));
+
+    final TimeZone minusFiveZone = TimeZone.getDefault();
+    minusFiveZone.setRawOffset((int) (minusFiveZone.getRawOffset() - 5 * MILLIS_PER_HOUR));
+    final Calendar minusFiveCal = Calendar.getInstance(minusFiveZone, Locale.ROOT);
+    assertThat(unixTimeToSqlTime(0, minusFiveCal).toString(), is("05:00:00"));
+
+    final TimeZone plusFiveZone = TimeZone.getDefault();
+    plusFiveZone.setRawOffset((int) (plusFiveZone.getRawOffset() + 5 * MILLIS_PER_HOUR));
+    final Calendar plusFiveCal = Calendar.getInstance(plusFiveZone, Locale.ROOT);
+    assertThat(unixTimeToSqlTime(0, plusFiveCal).toString(), is("19:00:00"));
+  }
+
+  /**
+   * Test that a timestamp in the local time zone converts to a unix timestamp in UTC.
+   */
+  @Test public void testSqlTimestampToUnixTimestampWithLocalTimeZone() {
+    assertThat(sqlTimestampToUnixTimestamp(Timestamp.valueOf("1970-01-01 00:00:00"), CALENDAR),
+        is(0L));
+    assertThat(sqlTimestampToUnixTimestamp(Timestamp.valueOf("2014-09-30 15:28:27.356"), CALENDAR),
+        is(timestampStringToUnixDate("2014-09-30 15:28:27.356")));
+    assertThat(sqlTimestampToUnixTimestamp(Timestamp.valueOf("1500-04-30 12:00:00.123"), CALENDAR),
+        is(timestampStringToUnixDate("1500-04-30 12:00:00.123")));
+  }
+
+  /**
+   * Test that no time zone conversion happens when the given calendar is {@code null}.
+   */
+  @Test public void testSqlTimestampToUnixTimestampWithNullCalendar() {
+    assertThat(sqlTimestampToUnixTimestamp(new Timestamp(0L), (Calendar) null), is(0L));
+
+    final Calendar julianCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+    julianCal.set(1500, Calendar.APRIL, 30, 0, 0, 0);
+    julianCal.set(Calendar.MILLISECOND, 0);
+    assertThat(
+        sqlTimestampToUnixTimestamp(new Timestamp(julianCal.getTimeInMillis()), (Calendar) null),
+        is(-171545 * MILLIS_PER_DAY /* 1500-04-30 in ISO calendar */));
+  }
+
+  /**
+   * Test using a custom {@link Calendar} to calculate the unix timestamp. Timestamps created by a
+   * {@link Calendar} should be converted to a unix timestamp in the given time zone. Timestamps
+   * created by a {@link Timestamp} method should be converted relative to the local time and not
+   * UTC.
+   */
+  @Test public void testSqlTimestampToUnixTimestampWithCustomCalendar() {
+    final Timestamp epoch = java.sql.Timestamp.valueOf("1970-01-01 00:00:00");
+
+    final Calendar utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+    utcCal.set(1970, Calendar.JANUARY, 1, 0, 0, 0);
+    utcCal.set(Calendar.MILLISECOND, 0);
+    assertThat(sqlTimestampToUnixTimestamp(new Timestamp(utcCal.getTimeInMillis()), utcCal),
+        is(0L));
+
+    final TimeZone minusFiveZone = TimeZone.getDefault();
+    minusFiveZone.setRawOffset((int) (minusFiveZone.getRawOffset() - 5 * MILLIS_PER_HOUR));
+    final Calendar minusFiveCal = Calendar.getInstance(minusFiveZone, Locale.ROOT);
+    assertThat(sqlTimestampToUnixTimestamp(epoch, minusFiveCal),
+        is(-5 * MILLIS_PER_HOUR));
+
+    final TimeZone plusFiveZone = TimeZone.getDefault();
+    plusFiveZone.setRawOffset((int) (plusFiveZone.getRawOffset() + 5 * MILLIS_PER_HOUR));
+    final Calendar plusFiveCal = Calendar.getInstance(plusFiveZone, Locale.ROOT);
+    assertThat(sqlTimestampToUnixTimestamp(epoch, plusFiveCal),
+        is(5 * MILLIS_PER_HOUR));
+  }
+
+  /**
+   * Test calendar conversion from the standard Gregorian calendar used by {@code java.sql} and the
+   * proleptic Gregorian calendar used by unix timestamps.
+   */
+  @Test public void testSqlTimestampToUnixTimestampWithGregorianShift() {
+    assertThat(sqlTimestampToUnixTimestamp(Timestamp.valueOf("1582-10-05 00:00:00"), CALENDAR),
+        is(timestampStringToUnixDate("1582-10-15 00:00:00")));
+    assertThat(sqlTimestampToUnixTimestamp(Timestamp.valueOf("1582-10-04 00:00:00"), CALENDAR),
+        is(timestampStringToUnixDate("1582-10-04 00:00:00")));
+    assertThat(sqlTimestampToUnixTimestamp(Timestamp.valueOf("1582-10-15 00:00:00"), CALENDAR),
+        is(timestampStringToUnixDate("1582-10-15 00:00:00")));
+  }
+
+  /**
+   * Test date range 0001-01-01 to 9999-12-31 required by ANSI SQL.
+   *
+   * <p>Java may not be able to represent 0001-01-01 UTC depending on the default time zone. If the
+   * date would fall outside of Anno Domini (AD) when converted to the default time zone, that date
+   * should not be tested.
+   *
+   * <p>Not every time zone has a January 1st 12:00am, so this test only uses the UTC Time zone.
+   */
+  @Test public void testSqlTimestampToUnixTimestampWithAnsiDateRange() {
+    final Calendar ansiCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+
+    // Test 0001-01-02 UTC to avoid issues with Java modifying 0001-01-01 when outside AD
+    ansiCal.set(1, Calendar.JANUARY, 2, 0, 0, 0);
+    ansiCal.set(Calendar.MILLISECOND, 0);
+    assertThat("Converts 0001-01-02 from SQL to unix timestamp",
+        sqlTimestampToUnixTimestamp(new Timestamp(ansiCal.getTimeInMillis()), ansiCal),
+        is(timestampStringToUnixDate("0001-01-02 00:00:00")));
+
+    // Test remaining years 0002-01-01 to 9999-01-01
+    ansiCal.set(Calendar.DATE, 1);
+    for (int i = 2; i <= 9999; ++i) {
+      final String str = String.format(Locale.ROOT, "%04d-01-01 00:00:00", i);
+      ansiCal.set(Calendar.YEAR, i);
+      assertThat("Converts '" + str + "' from SQL to unix timestamp",
+          sqlTimestampToUnixTimestamp(new Timestamp(ansiCal.getTimeInMillis()), ansiCal),
+          is(timestampStringToUnixDate(str)));
+    }
+
+    // Test end of range 9999-12-31
+    ansiCal.set(9999, Calendar.DECEMBER, 31, 0, 0, 0);
+    ansiCal.set(Calendar.MILLISECOND, 0);
+    assertThat("Converts 9999-12-31 from SQL to unix date",
+        sqlTimestampToUnixTimestamp(new Timestamp(ansiCal.getTimeInMillis()), ansiCal),
+        is(timestampStringToUnixDate("9999-12-31 00:00:00")));
+  }
+
+  /**
+   * Test that a unix timestamp converts to a SQL timestamp in the local time zone.
+   */
+  @Test public void testUnixTimestampToSqlTimestampWithLocalTimeZone() {
+    assertThat(unixTimestampToSqlTimestamp(0L, CALENDAR),
+        is(Timestamp.valueOf("1970-01-01 00:00:00.0")));
+    assertThat(unixTimestampToSqlTimestamp(1412090907356L, CALENDAR),
+        is(Timestamp.valueOf("2014-09-30 15:28:27.356")));
+    assertThat(unixTimestampToSqlTimestamp(-14821444799877L, CALENDAR),
+        is(Timestamp.valueOf("1500-04-30 12:00:00.123")));
+    assertThat(unixTimestampToSqlTimestamp(
+            timestampStringToUnixDate("1500-04-30 12:00:00.123"),
+            CALENDAR),
+        is(Timestamp.valueOf("1500-04-30 12:00:00.123")));
+  }
+
+  /**
+   * Test that no time zone conversion happens when the given calendar is {@code null}.
+   */
+  @Test public void testUnixTimestampToSqlTimestampWithNullCalendar() {
+    assertThat(unixTimestampToSqlTimestamp(0L, null), is(new Timestamp(0L)));
+
+    final Calendar julianCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+    julianCal.set(1500, Calendar.APRIL, 30, 0, 0, 0);
+    julianCal.set(Calendar.MILLISECOND, 0);
+    assertThat(
+        unixTimestampToSqlTimestamp(
+            -171545 * MILLIS_PER_DAY /* 1500-04-30 in ISO calendar */,
+            null),
+        is(new Timestamp(julianCal.getTimeInMillis())));
+  }
+
+  /**
+   * Test using a custom {@link Calendar} to calculate the SQL timestamp. Timestamps created by a
+   * {@link Calendar} should be converted to a SQL timestamp in the given time zone. Otherwise,
+   * unix timestamps should be converted relative to the local time and not UTC.
+   */
+  @Test public void testUnixTimestampToSqlTimestampWithCustomCalendar() {
+    final Calendar utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+    utcCal.set(1970, Calendar.JANUARY, 1, 0, 0, 0);
+    utcCal.set(Calendar.MILLISECOND, 0);
+    assertThat(unixTimestampToSqlTimestamp(0L, utcCal).getTime(), is(utcCal.getTimeInMillis()));
+
+    final TimeZone minusFiveZone = TimeZone.getDefault();
+    minusFiveZone.setRawOffset((int) (minusFiveZone.getRawOffset() - 5 * MILLIS_PER_HOUR));
+    final Calendar minusFiveCal = Calendar.getInstance(minusFiveZone, Locale.ROOT);
+    assertThat(unixTimestampToSqlTimestamp(0L, minusFiveCal),
+        is(Timestamp.valueOf("1970-01-01 05:00:00")));
+
+    final TimeZone plusFiveZone = TimeZone.getDefault();
+    plusFiveZone.setRawOffset((int) (plusFiveZone.getRawOffset() + 5 * MILLIS_PER_HOUR));
+    final Calendar plusFiveCal = Calendar.getInstance(plusFiveZone, Locale.ROOT);
+    assertThat(unixTimestampToSqlTimestamp(0L, plusFiveCal),
+        is(Timestamp.valueOf("1969-12-31 19:00:00")));
+  }
+
+  /**
+   * Test calendar conversion from the standard Gregorian calendar used by {@code java.sql} and the
+   * proleptic Gregorian calendar used by unix timestamps.
+   */
+  @Test public void testUnixTimestampToSqlTimestampWithGregorianShift() {
+    assertThat(
+        unixTimestampToSqlTimestamp(
+            timestampStringToUnixDate("1582-10-04 00:00:00"),
+            CALENDAR),
+        is(Timestamp.valueOf("1582-10-04 00:00:00.0")));
+    assertThat(
+        unixTimestampToSqlTimestamp(
+            timestampStringToUnixDate("1582-10-05 00:00:00"),
+            CALENDAR),
+        is(Timestamp.valueOf("1582-10-15 00:00:00.0")));
+    assertThat(
+        unixTimestampToSqlTimestamp(
+            timestampStringToUnixDate("1582-10-15 00:00:00"),
+            CALENDAR),
+        is(Timestamp.valueOf("1582-10-15 00:00:00.0")));
+  }
+
+  /**
+   * Test date range 0001-01-01 to 9999-12-31 required by ANSI SQL.
+   *
+   * <p>Java may not be able to represent all dates depending on the default time zone, but both
+   * the expected and actual assertion values handles that in the same way.
+   */
+  @Test public void testUnixTimestampToSqlTimestampWithAnsiDateRange() {
+    for (int i = 1; i <= 9999; ++i) {
+      final String str = String.format(Locale.ROOT, "%04d-01-01 00:00:00", i);
+      assertThat(unixTimestampToSqlTimestamp(timestampStringToUnixDate(str), CALENDAR),
+          is(Timestamp.valueOf(str)));
+    }
+
+    assertThat(
+        unixTimestampToSqlTimestamp(timestampStringToUnixDate("9999-12-31 00:00:00"), CALENDAR),
+        is(Timestamp.valueOf("9999-12-31 00:00:00")));
+  }
+
+  /** Until we upgrade to Junit5. */
+  private static void assertThrows(Runnable runnable,
+      Class<? extends Throwable> throwableClass,
+      Matcher<String> messageMatcher) {
+    try {
+      runnable.run();
+      throw new AssertionError("Exception not raised");
+    } catch (Throwable e) {
+      assertThat(throwableClass.isInstance(e), is(true));
+      assertThat(e.getMessage(), messageMatcher);
+    }
+  }
+
+  /**
+   * Test exception is raised if date in inappropriate meaning.
+   */
+  @Test public void testBrokenDate() {
+    // Test case for https://issues.apache.org/jira/browse/CALCITE-6248
+    // [CALCITE-6248] Illegal dates are accepted by casts
+    assertThrows(() -> DateTimeUtils.dateStringToUnixDate("2023-02-29"),
+        IllegalArgumentException.class,
+        is("Value of DAY field is out of range in '2023-02-29'"));
+
+    // Test case for https://issues.apache.org/jira/browse/CALCITE-6248
+    // [CALCITE-6248] Illegal dates are accepted by casts
+    assertThrows(() -> DateTimeUtils.dateStringToUnixDate("2023-13-1"),
+        IllegalArgumentException.class,
+        is("Value of MONTH field is out of range in '2023-13-1'"));
+
+    // Test case for https://issues.apache.org/jira/browse/CALCITE-6248
+    // [CALCITE-6248] Illegal dates are accepted by casts
+    assertThrows(() -> DateTimeUtils.dateStringToUnixDate("0-1-1"),
+        IllegalArgumentException.class,
+        is("Value of YEAR field is out of range in '0-1-1'"));
+
+    // 2023 is not a leap year
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("2023-02-29 12:00:00.123"),
+        IllegalArgumentException.class,
+        is("Value of DAY field is out of range in '2023-02-29 12:00:00.123'"));
+
+    // 2000 is a leap year
+    long x = timestampStringToUnixDate("2000-02-29 12:00:00.123");
+    assertThat(x, is(951825600123L));
+
+    // 1900 is not a leap year
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("1900-02-29 12:00:00.123"),
+        IllegalArgumentException.class,
+        is("Value of DAY field is out of range in '1900-02-29 12:00:00.123'"));
+
+    // 2100 is not a leap year
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("2100-02-29 12:00:00.123"),
+        IllegalArgumentException.class,
+        is("Value of DAY field is out of range in '2100-02-29 12:00:00.123'"));
+
+    // 1600 is a leap year
+    long x2 = timestampStringToUnixDate("1600-02-29 12:00:00.123");
+    assertThat(x2, is(-11670955199877L));
+
+    // 1500 is not a leap year
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("1500-02-29 12:00:00.123"),
+        IllegalArgumentException.class,
+        is("Value of DAY field is out of range in '1500-02-29 12:00:00.123'"));
+
+    // April has only 30 days
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("2023-04-31 12:00:00.123"),
+        IllegalArgumentException.class,
+        is("Value of DAY field is out of range in '2023-04-31 12:00:00.123'"));
+
+    // Month 13 is invalid
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("2023-13-29 12:00:00.123"),
+        IllegalArgumentException.class,
+        is("Invalid DATE value, '2023-13-29 12:00:00.123'"));
+
+    // Month -3 is invalid
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("2023--3-29 12:00:00.123"),
+        IllegalArgumentException.class,
+        is("Invalid DATE value, '2023--3-29 12:00:00.123'"));
+
+    // '123-1' is an invalid fractional second
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("2023-02-27 12:00:00.123-1"),
+        IllegalArgumentException.class,
+        is("Invalid TIME value, '2023-02-27 12:00:00.123-1'"));
+
+    // Invalid day 270
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("2023-02-270 12:00:00.123"),
+        IllegalArgumentException.class,
+        is("Invalid DATE value, '2023-02-270 12:00:00.123'"));
+
+    // Invalid fractional seconds '123-1'
+    assertThrows(() ->
+            DateTimeUtils.timestampStringToUnixDate("2023-02-27 12:00:00.123-1"),
+        IllegalArgumentException.class,
+        is("Invalid TIME value, '2023-02-27 12:00:00.123-1'"));
+
+    // Hour 24 is invalid
+    assertThrows(() ->
+        DateTimeUtils.timestampStringToUnixDate("2023-02-28 24:00:00.123"),
+        IllegalArgumentException.class,
+        is("Value of HOUR field is out of range in '2023-02-28 24:00:00.123'"));
   }
 }
 

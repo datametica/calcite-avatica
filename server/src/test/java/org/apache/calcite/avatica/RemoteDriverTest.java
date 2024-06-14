@@ -66,6 +66,7 @@ import java.util.Properties;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -578,7 +579,7 @@ public class RemoteDriverTest {
     assertEquals(2, metaData.getColumnCount());
     assertEquals("C1", metaData.getColumnName(1));
     assertEquals("C2", metaData.getColumnName(2));
-    for (int i = 0; i < maxRowCount || (maxRowCount == 0 && i < 3); i++) {
+    for (int i = 0; i < maxRowCount || maxRowCount == 0 && i < 3; i++) {
       assertTrue(resultSet.next());
     }
     assertFalse(resultSet.next());
@@ -891,9 +892,10 @@ public class RemoteDriverTest {
       getRequestInspection().getRequestLogger().enableAndClear();
       checkPrepareBindExecuteFetch(getLocalConnection());
       List<String[]> x = getRequestInspection().getRequestLogger().getAndDisable();
-      for (String[] pair : x) {
-        System.out.println(pair[0] + "=" + pair[1]);
-      }
+      // Counting the number of elements is not the best way to prevent regressions
+      // but it's better than just printing elements to standard out as it was before.
+      // Feel free to improve the assertion if you understand the original intention.
+      assertEquals(18, x.stream().flatMap(Stream::of).count());
     } finally {
       ConnectionSpec.getDatabaseLock().unlock();
     }
@@ -913,7 +915,6 @@ public class RemoteDriverTest {
       final ResultSet resultSet = ps.executeQuery();
       fail("expected error, got " + resultSet);
     } catch (SQLException e) {
-      LOG.info("Caught expected error", e);
       assertThat(e.getMessage(),
           containsString("exception while executing query: unbound parameter"));
     }
@@ -1333,7 +1334,7 @@ public class RemoteDriverTest {
             + " (id varchar(1) not null, col1 varchar(1) not null)";
         assertFalse(stmt.execute(sql));
       }
-      try (final PreparedStatement pstmt =
+      try (PreparedStatement pstmt =
           conn.prepareStatement("INSERT INTO " + tableName + " values(?, ?)")) {
         pstmt.setString(1, "a");
         pstmt.setString(2, "b");

@@ -134,7 +134,7 @@ public class ByteString implements Comparable<ByteString>, Serializable {
     default:
       throw new IllegalArgumentException("bad base " + base);
     }
-    return new String(chars, 0, j);
+    return String.valueOf(chars, 0, j);
   }
 
   /**
@@ -346,6 +346,35 @@ public class ByteString implements Comparable<ByteString>, Serializable {
       }
     }
     return -1;
+  }
+
+  /** Returns whether the substring of this ByteString beginning at the
+   * specified index starts with the specified prefix.
+   *
+   * @param prefix  The prefix
+   * @param offset Where to begin looking in this string
+   */
+  public boolean startsWith(ByteString prefix, int offset) {
+    // Note: offset might be near -1>>>1.
+    if (offset < 0 || offset > bytes.length - prefix.bytes.length) {
+      return false;
+    }
+    for (int i = offset, j = 0; j < prefix.bytes.length;) {
+      if (bytes[i++] != prefix.bytes[j++]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /** Returns whether this ByteString starts with the specified prefix. */
+  public boolean startsWith(ByteString prefix) {
+    return startsWith(prefix, 0);
+  }
+
+  /** Returns whether this ByteString ends with the specified suffix. */
+  public boolean endsWith(ByteString suffix) {
+    return startsWith(suffix, length() - suffix.length());
   }
 }
 

@@ -22,7 +22,7 @@ import java.io.File;
  * Allows a keystore (and keystorepassword, keypassword) to be
  * provided to enable MTLS authentication
  */
-public interface KeyStoreConfigurable {
+@Deprecated public interface KeyStoreConfigurable {
 
     /**
      * Sets a keystore containing the collection of client side certificates

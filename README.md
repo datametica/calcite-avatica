@@ -16,7 +16,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 {% endcomment %}
 -->
-[![Build Status](https://travis-ci.org/apache/calcite-avatica.svg?branch=master)](https://travis-ci.org/apache/calcite-avatica)
 [![CI Status](https://github.com/apache/calcite-avatica/workflows/CI/badge.svg)](https://github.com/apache/calcite-avatica/actions)
 
 # Apache Calcite -- Avatica
@@ -29,3 +28,6 @@ For more details, see the [home page](https://calcite.apache.org/avatica).
 
 Release notes for all published versions are available on the [history
 page](https://calcite.apache.org/avatica/docs/history.html).
+
+The project uses [JIRA](https://issues.apache.org/jira/browse/CALCITE)
+for issue tracking. For further information, please see the [JIRA accounts guide](https://calcite.apache.org/develop/#jira-accounts).

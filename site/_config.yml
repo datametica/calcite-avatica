@@ -24,14 +24,16 @@ exclude: [README.md,Gemfile*,add-avatica-go-docs.sh,docker-compose.yml,target]
 keep_files: [".git", ".svn", "javadocAggregate"]
 # This ensures 2016-03-03-separate-project.md is rendered 2016-03-03
 # no matter what the client time zone is
-timezone: Etc/GMT+5
+timezone: Etc/UTC
+
+future: true
 
 collections:
   docs:
     output: true
 
 # The URL where the code can be found
-sourceRoot: https://github.com/apache/calcite-avatica/tree/master
+sourceRoot: https://github.com/apache/calcite-avatica/tree/main
 
 # The URL where Avatica Javadocs are located
 apiRoot: /avatica/javadocAggregate

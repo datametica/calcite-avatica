@@ -50,10 +50,54 @@ import static org.junit.Assert.fail;
  * Unit test for Avatica utilities.
  */
 public class AvaticaUtilsTest {
+  /** Used by {@link #testInstantiatePlugin()}. */
+  public static final ThreadLocal<String> STRING_THREAD_LOCAL =
+      ThreadLocal.withInitial(() -> "not initialized");
+
+  /** Also used by {@link #testInstantiatePlugin()}. */
+  public static final ThreadLocal<Float> FLOAT_THREAD_LOCAL =
+      ThreadLocal.withInitial(() -> Float.MIN_VALUE);
+
+  /** Tests {@link AvaticaUtils#instantiatePlugin(Class, String)}. */
   @Test public void testInstantiatePlugin() {
     final String s =
         AvaticaUtils.instantiatePlugin(String.class, "java.lang.String");
     assertThat(s, is(""));
+
+    final BigInteger b =
+        AvaticaUtils.instantiatePlugin(BigInteger.class, "java.math.BigInteger#ONE");
+    assertThat(b, is(BigInteger.ONE));
+
+    // Class not found
+    try {
+      final BigInteger b2 =
+          AvaticaUtils.instantiatePlugin(BigInteger.class, "org.apache.calcite.Abc");
+      fail("expected error, got " + b2);
+    } catch (Throwable e) {
+      assertThat(e.getMessage(),
+          is("Property 'org.apache.calcite.Abc' not valid as "
+              + "'org.apache.calcite.Abc' not found in the classpath"));
+    }
+
+    // No instance of ABC
+    try {
+      final String s2 = AvaticaUtils.instantiatePlugin(String.class, "java.lang.String#ABC");
+      fail("expected error, got " + s2);
+    } catch (Throwable e) {
+      assertThat(e.getMessage(),
+          is("Property 'java.lang.String#ABC' not valid as "
+              + "there is no 'ABC' field in the class of 'java.lang.String'"));
+    }
+
+    // The instance type is not the plugin type
+    try {
+      final String s2 = AvaticaUtils.instantiatePlugin(String.class, "java.math.BigInteger#ONE");
+      fail("expected error, got " + s2);
+    } catch (Throwable e) {
+      assertThat(e.getMessage(),
+          is("Property 'java.math.BigInteger#ONE' not valid as "
+              + "cannot convert java.math.BigInteger to java.lang.String"));
+    }
 
     // No default constructor or INSTANCE member
     try {
@@ -62,21 +106,112 @@ public class AvaticaUtilsTest {
       fail("expected error, got " + i);
     } catch (Throwable e) {
       assertThat(e.getMessage(),
-          is("Property 'java.lang.Integer' not valid for plugin type java.lang.Integer"));
+          is("Property 'java.lang.Integer' not valid as the default constructor is necessary,"
+              + " but not found in the class of 'java.lang.Integer'"));
     }
 
-    final BigInteger b =
-        AvaticaUtils.instantiatePlugin(BigInteger.class, "java.math.BigInteger#ONE");
-    assertThat(b, is(BigInteger.ONE));
-
+    // Not valid for plugin type
     try {
       final BigInteger b2 =
-          AvaticaUtils.instantiatePlugin(BigInteger.class,
-              "java.math.BigInteger.ONE");
+          AvaticaUtils.instantiatePlugin(BigInteger.class, "java.lang.String");
       fail("expected error, got " + b2);
     } catch (Throwable e) {
       assertThat(e.getMessage(),
-          is("Property 'java.math.BigInteger.ONE' not valid for plugin type java.math.BigInteger"));
+          is("Property 'java.lang.String' not valid for plugin type java.math.BigInteger"));
+    }
+
+    // Read from thread-local
+    try {
+      STRING_THREAD_LOCAL.set("abc");
+      final String s2 =
+          AvaticaUtils.instantiatePlugin(String.class,
+              AvaticaUtilsTest.class.getName() + "#STRING_THREAD_LOCAL");
+      assertThat(s2, is("abc"));
+    } finally {
+      STRING_THREAD_LOCAL.remove();
+    }
+
+    // Read from thread-local, wrong type
+    try {
+      STRING_THREAD_LOCAL.set("abc");
+      final Integer i =
+          AvaticaUtils.instantiatePlugin(Integer.class,
+              AvaticaUtilsTest.class.getName() + "#STRING_THREAD_LOCAL");
+      fail("expected error, got " + i);
+    } catch (Throwable e) {
+      assertThat(e.getMessage(),
+          is("Property 'org.apache.calcite.avatica.test.AvaticaUtilsTest"
+              + "#STRING_THREAD_LOCAL' not valid as cannot convert java.lang.String "
+              + "to java.lang.Integer"));
+    } finally {
+      STRING_THREAD_LOCAL.remove();
+    }
+
+    // Read from thread-local, wrong type (array type, because it's tricky to
+    // print correctly).
+    try {
+      STRING_THREAD_LOCAL.set("abc");
+      final BigDecimal[] bigDecimals =
+          AvaticaUtils.instantiatePlugin(BigDecimal[].class,
+              AvaticaUtilsTest.class.getName() + "#STRING_THREAD_LOCAL");
+      fail("expected error, got " + Arrays.toString(bigDecimals));
+    } catch (Throwable e) {
+      assertThat(e.getMessage(),
+          is("Property 'org.apache.calcite.avatica.test.AvaticaUtilsTest"
+              + "#STRING_THREAD_LOCAL' not valid as cannot convert "
+              + "java.lang.String to java.math.BigDecimal[]"));
+    } finally {
+      STRING_THREAD_LOCAL.remove();
+    }
+
+    // Read from thread-local, wrong type (private enum type, because it's
+    // tricky to print correctly).
+    try {
+      STRING_THREAD_LOCAL.set("abc");
+      final Weight weight =
+          AvaticaUtils.instantiatePlugin(Weight.class,
+              AvaticaUtilsTest.class.getName() + "#STRING_THREAD_LOCAL");
+      fail("expected error, got " + weight);
+    } catch (Throwable e) {
+      assertThat(e.getMessage(),
+          is("Property 'org.apache.calcite.avatica.test.AvaticaUtilsTest"
+              + "#STRING_THREAD_LOCAL' not valid as cannot convert "
+              + "java.lang.String to "
+              + "org.apache.calcite.avatica.test.AvaticaUtilsTest.Weight"));
+    } finally {
+      STRING_THREAD_LOCAL.remove();
+    }
+
+    // Read from thread-local, wrong type (primitive type).
+    try {
+      STRING_THREAD_LOCAL.set("abc");
+      final float f =
+          AvaticaUtils.instantiatePlugin(float.class,
+              AvaticaUtilsTest.class.getName() + "#STRING_THREAD_LOCAL");
+      fail("expected error, got " + f);
+    } catch (Throwable e) {
+      assertThat(e.getMessage(),
+          is("Property 'org.apache.calcite.avatica.test.AvaticaUtilsTest"
+              + "#STRING_THREAD_LOCAL' not valid as cannot convert "
+              + "java.lang.String to float"));
+    } finally {
+      STRING_THREAD_LOCAL.remove();
+    }
+
+    // Read from thread-local, primitive type.
+    try {
+      FLOAT_THREAD_LOCAL.set(2.5f);
+      final float f =
+          AvaticaUtils.instantiatePlugin(float.class,
+              AvaticaUtilsTest.class.getName() + "#FLOAT_THREAD_LOCAL");
+      fail("expected error, got " + f);
+    } catch (Throwable e) {
+      assertThat(e.getMessage(),
+          is("Property 'org.apache.calcite.avatica.test.AvaticaUtilsTest"
+              + "#FLOAT_THREAD_LOCAL' not valid as cannot convert "
+              + "java.lang.Float to float"));
+    } finally {
+      FLOAT_THREAD_LOCAL.remove();
     }
   }
 
@@ -276,6 +411,47 @@ public class AvaticaUtilsTest {
     copyBytes[3] = 11;
     assertThat(s.getBytes()[3], is((byte) 92));
     assertThat(s, is(s2));
+
+    // startsWith
+    assertThat(s.startsWith(s), is(true));
+    assertThat(s.startsWith(s.substring(0, 1)), is(true));
+    assertThat(s.startsWith(s.substring(0, 3)), is(true));
+    assertThat(s.startsWith(s3), is(true)); // ""
+    assertThat(s.startsWith(s4), is(false)); // "\0"
+    assertThat(s3.startsWith(s3), is(true)); // "" starts with ""
+
+    // startsWith offset 0
+    assertThat(s.startsWith(s, 0), is(true));
+    assertThat(s.startsWith(s.substring(0, 1), 0), is(true));
+    assertThat(s.startsWith(s.substring(0, 3), 0), is(true));
+    assertThat(s.startsWith(s3, 0), is(true)); // ""
+    assertThat(s.startsWith(s4, 0), is(false)); // "\0"
+    assertThat(s3.startsWith(s3, 0), is(true)); // "" starts with ""
+
+    // startsWith, other offsets
+    assertThat(s.startsWith(s, 1), is(false));
+    assertThat(s.startsWith(s3, 1), is(true));
+    assertThat(s.startsWith(s3, s.length() - 1), is(true));
+    assertThat(s.startsWith(s3, s.length()), is(true));
+    assertThat(s.startsWith(s3, s.length() + 1), is(false));
+
+    // endsWith
+    assertThat(reverse(s).endsWith(reverse(s)), is(true));
+    assertThat(reverse(s).endsWith(reverse(s.substring(0, 1))), is(true));
+    assertThat(reverse(s).endsWith(reverse(s.substring(0, 3))), is(true));
+    assertThat(reverse(s).endsWith(reverse(s3)), is(true)); // ""
+    assertThat(reverse(s).endsWith(reverse(s4)), is(false)); // "\0"
+    assertThat(reverse(s3).endsWith(reverse(s3)), is(true));
+  }
+
+  private ByteString reverse(ByteString s) {
+    final byte[] bytes = s.getBytes();
+    for (int i = 0, j = bytes.length - 1; i < j; i++, j--) {
+      byte b = bytes[i];
+      bytes[i] = bytes[j];
+      bytes[j] = b;
+    }
+    return new ByteString(bytes);
   }
 
   @Test public void testSkipFully() throws IOException {

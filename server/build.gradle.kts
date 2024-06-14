@@ -31,10 +31,6 @@ dependencies {
     implementation("org.slf4j:slf4j-api")
     implementation("com.google.guava:guava")
 
-    // TODO: AvaticaSuite includes AvaticaUtilsTest and ConnectStringParserTest from :core
-    //   Does it really make sense?
-    testImplementation(project(":core", "testClasses"))
-
     testImplementation("com.github.stephenc.jcip:jcip-annotations")
     testImplementation("junit:junit")
     testImplementation("net.hydromatic:scott-data-hsqldb")
@@ -45,9 +41,9 @@ dependencies {
     testImplementation("org.bouncycastle:bcprov-jdk15on")
     testImplementation("org.hamcrest:hamcrest-core")
     testImplementation("org.mockito:mockito-core")
-
+    testImplementation("org.apache.httpcomponents.client5:httpclient5")
     testRuntimeOnly("org.hsqldb:hsqldb")
-    testRuntimeOnly("org.slf4j:slf4j-log4j12")
+    testRuntimeOnly("org.apache.logging.log4j:log4j-slf4j-impl")
 }
 
 tasks {

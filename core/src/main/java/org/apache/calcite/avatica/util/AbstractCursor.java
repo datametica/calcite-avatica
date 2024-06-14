@@ -26,7 +26,6 @@ import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
@@ -111,6 +110,7 @@ public abstract class AbstractCursor implements Cursor {
     case Types.BIGINT:
       return new LongAccessor(getter);
     case Types.BOOLEAN:
+    case Types.BIT:
       return new BooleanAccessor(getter);
     case Types.REAL:
       return new FloatAccessor(getter);
@@ -118,7 +118,7 @@ public abstract class AbstractCursor implements Cursor {
     case Types.DOUBLE:
       return new DoubleAccessor(getter);
     case Types.DECIMAL:
-      return new BigDecimalAccessor(getter);
+      return new NumberAccessor(getter, columnMetaData.scale);
     case Types.CHAR:
       switch (columnMetaData.type.rep) {
       case PRIMITIVE_CHAR:
@@ -128,6 +128,7 @@ public abstract class AbstractCursor implements Cursor {
         return new FixedStringAccessor(getter, columnMetaData.displaySize);
       }
     case Types.VARCHAR:
+    case Types.NVARCHAR:
       return new StringAccessor(getter);
     case Types.BINARY:
     case Types.VARBINARY:
@@ -144,7 +145,7 @@ public abstract class AbstractCursor implements Cursor {
       case NUMBER:
         return new DateFromNumberAccessor(getter, localCalendar);
       case JAVA_SQL_DATE:
-        return new DateAccessor(getter);
+        return new DateAccessor(getter, localCalendar);
       default:
         throw new AssertionError("bad " + columnMetaData.type.rep);
       }
@@ -153,9 +154,9 @@ public abstract class AbstractCursor implements Cursor {
       case PRIMITIVE_INT:
       case INTEGER:
       case NUMBER:
-        return new TimeFromNumberAccessor(getter, localCalendar);
+        return new TimeFromNumberAccessor(getter, localCalendar, columnMetaData.precision);
       case JAVA_SQL_TIME:
-        return new TimeAccessor(getter);
+        return new TimeAccessor(getter, localCalendar);
       default:
         throw new AssertionError("bad " + columnMetaData.type.rep);
       }
@@ -164,22 +165,22 @@ public abstract class AbstractCursor implements Cursor {
       case PRIMITIVE_LONG:
       case LONG:
       case NUMBER:
-        return new TimestampFromNumberAccessor(getter, localCalendar);
+        return new TimestampFromNumberAccessor(getter, localCalendar, columnMetaData.precision);
       case JAVA_SQL_TIMESTAMP:
-        return new TimestampAccessor(getter);
+        return new TimestampAccessor(getter, localCalendar, columnMetaData.precision);
       case JAVA_UTIL_DATE:
-        return new TimestampFromUtilDateAccessor(getter, localCalendar);
+        return new TimestampFromUtilDateAccessor(getter, localCalendar, columnMetaData.precision);
       default:
         throw new AssertionError("bad " + columnMetaData.type.rep);
       }
-    case 2013: // TIME_WITH_TIMEZONE
+    case Types.TIME_WITH_TIMEZONE:
       switch (columnMetaData.type.rep) {
       case STRING:
         return new StringAccessor(getter);
       default:
         throw new AssertionError("bad " + columnMetaData.type.rep);
       }
-    case 2014: // TIMESTAMP_WITH_TIMEZONE
+    case Types.TIMESTAMP_WITH_TIMEZONE:
       switch (columnMetaData.type.rep) {
       case STRING:
         return new StringAccessor(getter);
@@ -210,6 +211,7 @@ public abstract class AbstractCursor implements Cursor {
         throw new AssertionError("bad " + columnMetaData.type.rep);
       }
     case Types.JAVA_OBJECT:
+    case Types.NULL:
     case Types.OTHER: // e.g. map
       if (columnMetaData.type.getName().startsWith("INTERVAL_")) {
         int end = columnMetaData.type.getName().indexOf("(");
@@ -239,11 +241,11 @@ public abstract class AbstractCursor implements Cursor {
   /** Accesses a timestamp value as a string.
    * The timestamp is in SQL format (e.g. "2013-09-22 22:30:32"),
    * not Java format ("2013-09-22 22:30:32.123"). */
-  private static String timestampAsString(long v, Calendar calendar) {
+  private static String timestampAsString(long v, Calendar calendar, int precision) {
     if (calendar != null) {
       v -= calendar.getTimeZone().getOffset(v);
     }
-    return DateTimeUtils.unixTimestampToString(v);
+    return DateTimeUtils.unixTimestampToString(v, precision);
   }
 
   /** Accesses a date value as a string, e.g. "2013-09-22". */
@@ -253,32 +255,11 @@ public abstract class AbstractCursor implements Cursor {
   }
 
   /** Accesses a time value as a string, e.g. "22:30:32". */
-  private static String timeAsString(int v, Calendar calendar) {
+  private static String timeAsString(int v, Calendar calendar, int precision) {
     if (calendar != null) {
       v -= calendar.getTimeZone().getOffset(v);
     }
-    return DateTimeUtils.unixTimeToString(v);
-  }
-
-  private static Date longToDate(long v, Calendar calendar) {
-    if (calendar != null) {
-      v -= calendar.getTimeZone().getOffset(v);
-    }
-    return new Date(v);
-  }
-
-  static Time intToTime(int v, Calendar calendar) {
-    if (calendar != null) {
-      v -= calendar.getTimeZone().getOffset(v);
-    }
-    return new Time(v);
-  }
-
-  static Timestamp longToTimestamp(long v, Calendar calendar) {
-    if (calendar != null) {
-      v -= calendar.getTimeZone().getOffset(v);
-    }
-    return new Timestamp(v);
+    return DateTimeUtils.unixTimeToString(v, precision);
   }
 
   /** Implementation of {@link Cursor.Accessor}. */
@@ -694,17 +675,22 @@ public abstract class AbstractCursor implements Cursor {
     }
 
     public BigDecimal getBigDecimal(int scale) throws SQLException {
-      return (BigDecimal) getObject();
+      Number number = getNumber();
+      return number == null || number instanceof BigDecimal
+          ? (BigDecimal) number : BigDecimal.valueOf(number.longValue());
     }
 
     public BigDecimal getBigDecimal() throws SQLException {
-      return (BigDecimal) getObject();
+      Number number = getNumber();
+      return number == null || number instanceof BigDecimal
+          ? (BigDecimal) number : BigDecimal.valueOf(number.longValue());
     }
   }
 
   /**
    * Accessor that assumes that the underlying value is a {@link Number};
-   * corresponds to {@link java.sql.Types#NUMERIC}.
+   * corresponds to {@link java.sql.Types#NUMERIC}
+   * or {@link java.sql.Types#DECIMAL}.
    *
    * <p>This is useful when numbers have been translated over JSON. JSON
    * converts a 0L (0 long) value to the string "0" and back to 0 (0 int).
@@ -722,14 +708,20 @@ public abstract class AbstractCursor implements Cursor {
       return (Number) super.getObject();
     }
 
+    //FIXME There are several issues with this, the code below simply implements
+    //a previous behaviour codified by the Calcite test suite.
+    //
+    // 1. It interprets a scale of 0 as a NOOP parameter, it should in fact drop all fractionals
+    // 2. The scale from MetaData is NOT applied to BigDecimal values. Why ?
+    // 3. Metadata scale is only applied for getBigDecimal(), and only in this Accessor. Why ?
     public BigDecimal getBigDecimal(int scale) throws SQLException {
       Number n = getNumber();
       if (n == null) {
         return null;
       }
       BigDecimal decimal = AvaticaSite.toBigDecimal(n);
-      if (0 != scale) {
-        return decimal.setScale(scale, RoundingMode.UNNECESSARY);
+      if (0 != scale && !(n instanceof BigDecimal)) {
+        return decimal.setScale(scale, RoundingMode.DOWN);
       }
       return decimal;
     }
@@ -737,6 +729,7 @@ public abstract class AbstractCursor implements Cursor {
     public BigDecimal getBigDecimal() throws SQLException {
       return getBigDecimal(scale);
     }
+
   }
 
   /**
@@ -837,7 +830,7 @@ public abstract class AbstractCursor implements Cursor {
         return null;
       }
       if (o instanceof byte[]) {
-        return new String((byte[]) o, StandardCharsets.UTF_8);
+        return AvaticaUtils.newStringUtf8((byte[]) o);
       } else if (o instanceof ByteString) {
         return ((ByteString) o).toString();
       }
@@ -886,7 +879,7 @@ public abstract class AbstractCursor implements Cursor {
         return null;
       }
       // Need to base64 decode the string.
-      return new String(bytes, StandardCharsets.UTF_8);
+      return AvaticaUtils.newStringUtf8(bytes);
     }
   }
 
@@ -894,11 +887,15 @@ public abstract class AbstractCursor implements Cursor {
    * Accessor that assumes that the underlying value is a DATE,
    * in its default representation {@code int};
    * corresponds to {@link java.sql.Types#DATE}.
+   *
+   * <p>For backwards compatibility, timezone offsets are calculated in relation to the local
+   * timezone instead of to UTC. Providing the default calendar will return the underlying value
+   * unmodified. This differs from {@link DateAccessor} which uses the timezone offset from UTC.
    */
-  private static class DateFromNumberAccessor extends NumberAccessor {
+  static class DateFromNumberAccessor extends NumberAccessor {
     private final Calendar localCalendar;
 
-    private DateFromNumberAccessor(Getter getter, Calendar localCalendar) {
+    DateFromNumberAccessor(Getter getter, Calendar localCalendar) {
       super(getter, 0);
       this.localCalendar = localCalendar;
     }
@@ -912,7 +909,7 @@ public abstract class AbstractCursor implements Cursor {
       if (v == null) {
         return null;
       }
-      return longToDate(v.longValue() * DateTimeUtils.MILLIS_PER_DAY, calendar);
+      return DateTimeUtils.unixDateToSqlDate(v.intValue(), calendar);
     }
 
     @Override public Timestamp getTimestamp(Calendar calendar) throws SQLException {
@@ -920,7 +917,8 @@ public abstract class AbstractCursor implements Cursor {
       if (v == null) {
         return null;
       }
-      return longToTimestamp(v.longValue() * DateTimeUtils.MILLIS_PER_DAY,
+      return DateTimeUtils.unixTimestampToSqlTimestamp(
+          v.longValue() * DateTimeUtils.MILLIS_PER_DAY,
           calendar);
     }
 
@@ -931,19 +929,38 @@ public abstract class AbstractCursor implements Cursor {
       }
       return dateAsString(v.intValue(), null);
     }
+
+    protected Number getNumber() throws SQLException {
+      final Object value = super.getObject();
+      if (value == null) {
+        return null;
+      }
+      if (value instanceof Date) {
+        long time = ((Date) value).getTime();
+        time -= localCalendar.getTimeZone().getOffset(time);
+        return time / DateTimeUtils.MILLIS_PER_DAY;
+      }
+      return (Number) value;
+    }
   }
 
   /**
    * Accessor that assumes that the underlying value is a Time,
    * in its default representation {@code int};
    * corresponds to {@link java.sql.Types#TIME}.
+   *
+   * <p>For backwards compatibility, timezone offsets are calculated in relation to the local
+   * timezone instead of to UTC. Passing in the default calendar will return the underlying value
+   * unmodified. This differs from {@link TimeAccessor} which uses the timezone offset from UTC.
    */
-  private static class TimeFromNumberAccessor extends NumberAccessor {
+  static class TimeFromNumberAccessor extends NumberAccessor {
     private final Calendar localCalendar;
+    private final int precision;
 
-    private TimeFromNumberAccessor(Getter getter, Calendar localCalendar) {
+    TimeFromNumberAccessor(Getter getter, Calendar localCalendar, int precision) {
       super(getter, 0);
       this.localCalendar = localCalendar;
+      this.precision = precision;
     }
 
     @Override public Object getObject() throws SQLException {
@@ -955,7 +972,7 @@ public abstract class AbstractCursor implements Cursor {
       if (v == null) {
         return null;
       }
-      return intToTime(v.intValue(), calendar);
+      return DateTimeUtils.unixTimeToSqlTime(v.intValue(), calendar);
     }
 
     @Override public Timestamp getTimestamp(Calendar calendar) throws SQLException {
@@ -963,7 +980,7 @@ public abstract class AbstractCursor implements Cursor {
       if (v == null) {
         return null;
       }
-      return longToTimestamp(v.longValue(), calendar);
+      return DateTimeUtils.unixTimestampToSqlTimestamp(v.longValue(), calendar);
     }
 
     @Override public String getString() throws SQLException {
@@ -971,7 +988,18 @@ public abstract class AbstractCursor implements Cursor {
       if (v == null) {
         return null;
       }
-      return timeAsString(v.intValue(), null);
+      return timeAsString(v.intValue(), null, this.precision);
+    }
+
+    protected Number getNumber() throws SQLException {
+      final Object v = super.getObject();
+      if (v == null) {
+        return null;
+      }
+      if (v instanceof Time) {
+        return ((Time) v).getTime();
+      }
+      return (Number) v;
     }
   }
 
@@ -979,13 +1007,20 @@ public abstract class AbstractCursor implements Cursor {
    * Accessor that assumes that the underlying value is a TIMESTAMP,
    * in its default representation {@code long};
    * corresponds to {@link java.sql.Types#TIMESTAMP}.
+   *
+   * <p>For backwards compatibility, timezone offsets are calculated in relation to the local
+   * timezone instead of to UTC. Passing in the default calendar will return the underlying value
+   * unmodified. This differs from {@link TimestampAccessor} which uses the timezone offset from
+   * UTC.
    */
-  private static class TimestampFromNumberAccessor extends NumberAccessor {
+  static class TimestampFromNumberAccessor extends NumberAccessor {
     private final Calendar localCalendar;
+    private final int precision;
 
-    private TimestampFromNumberAccessor(Getter getter, Calendar localCalendar) {
+    TimestampFromNumberAccessor(Getter getter, Calendar localCalendar, int precision) {
       super(getter, 0);
       this.localCalendar = localCalendar;
+      this.precision = precision;
     }
 
     @Override public Object getObject() throws SQLException {
@@ -997,11 +1032,11 @@ public abstract class AbstractCursor implements Cursor {
       if (v == null) {
         return null;
       }
-      return longToTimestamp(v.longValue(), calendar);
+      return DateTimeUtils.unixTimestampToSqlTimestamp(v.longValue(), calendar);
     }
 
     @Override public Date getDate(Calendar calendar) throws SQLException {
-      final Timestamp timestamp  = getTimestamp(calendar);
+      final Timestamp timestamp = getTimestamp(calendar);
       if (timestamp == null) {
         return null;
       }
@@ -1009,13 +1044,11 @@ public abstract class AbstractCursor implements Cursor {
     }
 
     @Override public Time getTime(Calendar calendar) throws SQLException {
-      final Timestamp timestamp  = getTimestamp(calendar);
+      final Timestamp timestamp = getTimestamp(calendar);
       if (timestamp == null) {
         return null;
       }
-      return new Time(
-          DateTimeUtils.floorMod(timestamp.getTime(),
-              DateTimeUtils.MILLIS_PER_DAY));
+      return new Time(timestamp.getTime());
     }
 
     @Override public String getString() throws SQLException {
@@ -1023,7 +1056,18 @@ public abstract class AbstractCursor implements Cursor {
       if (v == null) {
         return null;
       }
-      return timestampAsString(v.longValue(), null);
+      return timestampAsString(v.longValue(), null, this.precision);
+    }
+
+    protected Number getNumber() throws SQLException {
+      final Object v = super.getObject();
+      if (v == null) {
+        return null;
+      }
+      if (v instanceof Timestamp) {
+        return ((Timestamp) v).getTime();
+      }
+      return (Number) v;
     }
   }
 
@@ -1031,10 +1075,19 @@ public abstract class AbstractCursor implements Cursor {
    * Accessor that assumes that the underlying value is a DATE,
    * represented as a java.sql.Date;
    * corresponds to {@link java.sql.Types#DATE}.
+   *
+   * <p>Since the underlying value does not provide a timezone, timezone offsets are calculated in
+   * relation to UTC. Passing in the default calendar will convert the date from UTC to local time.
+   * This differs from {@link DateFromNumberAccessor} which calculates timezone offsets in relation
+   * to local time, and {@link Date} which provides its value in local time unless otherwise
+   * specified.
    */
-  private static class DateAccessor extends ObjectAccessor {
-    private DateAccessor(Getter getter) {
+  static class DateAccessor extends ObjectAccessor {
+    private final Calendar localCalendar;
+
+    DateAccessor(Getter getter, Calendar localCalendar) {
       super(getter);
+      this.localCalendar = localCalendar;
     }
 
     @Override public Date getDate(Calendar calendar) throws SQLException {
@@ -1051,11 +1104,13 @@ public abstract class AbstractCursor implements Cursor {
     }
 
     @Override public String getString() throws SQLException {
-      final int v = getInt();
-      if (v == 0 && wasNull()) {
+      final java.sql.Date date = getDate(null);
+      if (date == null) {
         return null;
       }
-      return dateAsString(v, null);
+      final int unix = DateTimeUtils.sqlDateToUnixDate(date, localCalendar);
+      return dateAsString(unix, null);
+
     }
 
     @Override public long getLong() throws SQLException {
@@ -1070,10 +1125,19 @@ public abstract class AbstractCursor implements Cursor {
    * Accessor that assumes that the underlying value is a TIME,
    * represented as a java.sql.Time;
    * corresponds to {@link java.sql.Types#TIME}.
+   *
+   * <p>Since the underlying value does not provide a timezone, timezone offsets are calculated in
+   * relation to UTC. Passing in the default calendar will convert the time from UTC to local time.
+   * This differs from {@link TimeFromNumberAccessor} which calculates timezone offsets in relation
+   * to local time, and {@link Time} which provides its value in local time unless otherwise
+   * specified.
    */
-  private static class TimeAccessor extends ObjectAccessor {
-    private TimeAccessor(Getter getter) {
+  static class TimeAccessor extends ObjectAccessor {
+    private final Calendar localCalendar;
+
+    TimeAccessor(Getter getter, Calendar localCalendar) {
       super(getter);
+      this.localCalendar = localCalendar;
     }
 
     @Override public Time getTime(Calendar calendar) throws SQLException {
@@ -1090,11 +1154,13 @@ public abstract class AbstractCursor implements Cursor {
     }
 
     @Override public String getString() throws SQLException {
-      final int v = getInt();
-      if (v == 0 && wasNull()) {
+      final Time time = getTime(null);
+      if (time == null) {
         return null;
       }
-      return timeAsString(v, null);
+      final int unix = DateTimeUtils.sqlTimeToUnixTime(time, localCalendar);
+      // java.sql.Time only supports a precision of 0
+      return timeAsString(unix, null, 0);
     }
 
     @Override public long getLong() throws SQLException {
@@ -1108,10 +1174,21 @@ public abstract class AbstractCursor implements Cursor {
    * Accessor that assumes that the underlying value is a TIMESTAMP,
    * represented as a java.sql.Timestamp;
    * corresponds to {@link java.sql.Types#TIMESTAMP}.
+   *
+   * <p>Since the underlying value does not provide a timezone, timezone offsets are calculated in
+   * relation to UTC. Passing in the default calendar will convert the timestamp from UTC to local
+   * time. This differs from {@link TimeFromNumberAccessor} which calculates timezone offsets in
+   * relation to local time, and {@link Timestamp} which provides its value in local time unless
+   * otherwise specified.
    */
-  private static class TimestampAccessor extends ObjectAccessor {
-    private TimestampAccessor(Getter getter) {
+  static class TimestampAccessor extends ObjectAccessor {
+    private final Calendar localCalendar;
+    private final int precision;
+
+    TimestampAccessor(Getter getter, Calendar localCalendar, int precision) {
       super(getter);
+      this.localCalendar = localCalendar;
+      this.precision = precision;
     }
 
     @Override public Timestamp getTimestamp(Calendar calendar) throws SQLException {
@@ -1140,17 +1217,17 @@ public abstract class AbstractCursor implements Cursor {
       if (timestamp == null) {
         return null;
       }
-      return new Time(
-          DateTimeUtils.floorMod(timestamp.getTime(),
-              DateTimeUtils.MILLIS_PER_DAY));
+      return new Time(timestamp.getTime());
     }
 
     @Override public String getString() throws SQLException {
-      final long v = getLong();
-      if (v == 0 && wasNull()) {
+      final Timestamp timestamp = getTimestamp(null);
+      if (timestamp == null) {
         return null;
       }
-      return timestampAsString(v, null);
+      final long unix =
+          DateTimeUtils.sqlTimestampToUnixTimestamp(timestamp, localCalendar);
+      return timestampAsString(unix, null, this.precision);
     }
 
     @Override public long getLong() throws SQLException {
@@ -1163,14 +1240,21 @@ public abstract class AbstractCursor implements Cursor {
    * Accessor that assumes that the underlying value is a TIMESTAMP,
    * represented as a java.util.Date;
    * corresponds to {@link java.sql.Types#TIMESTAMP}.
+   *
+   * <p>Since the underlying value does not provide a timezone, timezone offsets are calculated in
+   * relation to UTC. Passing in the default calendar will convert the timestamp from UTC to local
+   * time. This differs from {@link java.util.Date} which provides its value in local time unless
+   * otherwise specified.
    */
-  private static class TimestampFromUtilDateAccessor extends ObjectAccessor {
+  static class TimestampFromUtilDateAccessor extends ObjectAccessor {
     private final Calendar localCalendar;
+    private final int precision;
 
-    private TimestampFromUtilDateAccessor(Getter getter,
-        Calendar localCalendar) {
+    TimestampFromUtilDateAccessor(Getter getter,
+        Calendar localCalendar, int precision) {
       super(getter);
       this.localCalendar = localCalendar;
+      this.precision = precision;
     }
 
     @Override public Timestamp getTimestamp(Calendar calendar) throws SQLException {
@@ -1198,17 +1282,16 @@ public abstract class AbstractCursor implements Cursor {
       if (timestamp == null) {
         return null;
       }
-      return new Time(
-          DateTimeUtils.floorMod(timestamp.getTime(),
-              DateTimeUtils.MILLIS_PER_DAY));
+      return new Time(timestamp.getTime());
     }
 
     @Override public String getString() throws SQLException {
-      java.util.Date date  = (java.util.Date) getObject();
+      final java.util.Date date = (java.util.Date) getObject();
       if (date == null) {
         return null;
       }
-      return timestampAsString(date.getTime(), null);
+      final long unix = DateTimeUtils.utilDateToUnixTimestamp(date, localCalendar);
+      return timestampAsString(unix, null, this.precision);
     }
 
     @Override public long getLong() throws SQLException {
@@ -1294,8 +1377,12 @@ public abstract class AbstractCursor implements Cursor {
           if (null == val) {
             convertedValues.add(null);
           } else {
-            // Set the current value in the SlotGetter so we can use the Accessor to coerce it.
-            componentSlotGetter.slot = val;
+            // Set the current value in the SlotGetter, so we can use the
+            // Accessor to coerce it.
+            componentSlotGetter.slot =
+                val instanceof Object[] && componentType.id != Types.STRUCT
+                    ? ((Object[]) val)[0]
+                    : val;
             convertedValues.add(convertValue());
           }
         }
@@ -1318,8 +1405,9 @@ public abstract class AbstractCursor implements Cursor {
         return componentAccessor.getInt();
       case Types.BIGINT:
         return componentAccessor.getLong();
-      case Types.FLOAT:
+      case Types.REAL:
         return componentAccessor.getFloat();
+      case Types.FLOAT:
       case Types.DOUBLE:
         return componentAccessor.getDouble();
       case Types.ARRAY:

@@ -45,6 +45,7 @@ dependencies {
         // In other words, marking dependency as "runtime" would avoid accidental
         // dependency on it during compilation
         apiv("com.beust:jcommander")
+        apiv("org.checkerframework:checker-qual", "checkerframework")
         apiv("com.fasterxml.jackson.core:jackson-annotations", "jackson")
         apiv("com.fasterxml.jackson.core:jackson-core", "jackson")
         apiv("com.fasterxml.jackson.core:jackson-databind", "jackson")
@@ -54,9 +55,11 @@ dependencies {
         apiv("com.h2database:h2")
         apiv("javax.servlet:javax.servlet-api", "servlet")
         apiv("junit:junit")
+        apiv("net.bytebuddy:byte-buddy", "bytebuddy")
+        apiv("net.bytebuddy:byte-buddy-agent", "bytebuddy")
         apiv("net.hydromatic:scott-data-hsqldb")
-        apiv("org.apache.httpcomponents:httpclient")
-        apiv("org.apache.httpcomponents:httpcore")
+        apiv("org.apache.httpcomponents.client5:httpclient5")
+        apiv("org.apache.httpcomponents.core5:httpcore5")
         apiv("org.apache.kerby:kerb-client", "kerby")
         apiv("org.apache.kerby:kerb-core", "kerby")
         apiv("org.apache.kerby:kerb-simplekdc", "kerby")
@@ -69,6 +72,7 @@ dependencies {
         apiv("org.hamcrest:hamcrest-core", "hamcrest")
         apiv("org.hsqldb:hsqldb")
         apiv("org.mockito:mockito-core", "mockito")
+        apiv("org.mockito:mockito-inline", "mockito")
         apiv("org.ow2.asm:asm")
         apiv("org.ow2.asm:asm-all", "asm")
         apiv("org.ow2.asm:asm-analysis", "asm")
@@ -76,6 +80,8 @@ dependencies {
         apiv("org.ow2.asm:asm-tree", "asm")
         apiv("org.ow2.asm:asm-util", "asm")
         apiv("org.slf4j:slf4j-api", "slf4j")
-        apiv("org.slf4j:slf4j-log4j12", "slf4j")
+        // The log4j2 binding should be a runtime dependency but given that
+        // some modules shade this dependency we need to keep it as api
+        apiv("org.apache.logging.log4j:log4j-slf4j-impl", "log4j2")
     }
 }

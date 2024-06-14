@@ -26,6 +26,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 
 import java.lang.reflect.Type;
+import java.math.BigDecimal;
 import java.sql.Array;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
@@ -137,18 +138,18 @@ public class ColumnMetaData {
 
     // Primitive fields (can't be null)
     builder.setOrdinal(ordinal)
-      .setAutoIncrement(autoIncrement)
-      .setCaseSensitive(caseSensitive)
-      .setSearchable(searchable)
-      .setCurrency(currency)
-      .setNullable(nullable)
-      .setSigned(signed)
-      .setDisplaySize(displaySize)
-      .setPrecision(precision)
-      .setScale(scale)
-      .setReadOnly(readOnly)
-      .setWritable(writable)
-      .setDefinitelyWritable(definitelyWritable);
+        .setAutoIncrement(autoIncrement)
+        .setCaseSensitive(caseSensitive)
+        .setSearchable(searchable)
+        .setCurrency(currency)
+        .setNullable(nullable)
+        .setSigned(signed)
+        .setDisplaySize(displaySize)
+        .setPrecision(precision)
+        .setScale(scale)
+        .setReadOnly(readOnly)
+        .setWritable(writable)
+        .setDefinitelyWritable(definitelyWritable);
 
     // Potentially null fields
     if (null != label) {
@@ -341,7 +342,7 @@ public class ColumnMetaData {
 
     /** Values are represented as some sub-class of {@link Number}.
      * The JSON encoding does this. */
-    NUMBER(Number.class, Types.NUMERIC),
+    NUMBER(BigDecimal.class, Types.NUMERIC),
 
     ARRAY(Array.class, Types.ARRAY),
     MULTISET(List.class, Types.JAVA_OBJECT),

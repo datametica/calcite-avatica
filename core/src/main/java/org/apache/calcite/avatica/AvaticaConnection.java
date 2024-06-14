@@ -66,6 +66,7 @@ public abstract class AvaticaConnection implements Connection {
    * the number of rows modified. */
   public static final String ROWCOUNT_COLUMN_NAME = "ROWCOUNT";
 
+  //TODO shouldn't we move this to BuiltInConnectionProperty ?
   public static final String NUM_EXECUTE_RETRIES_KEY = "avatica.statement.retries";
   public static final String NUM_EXECUTE_RETRIES_DEFAULT = "5";
 
@@ -96,6 +97,7 @@ public abstract class AvaticaConnection implements Connection {
   public final Map<Integer, AvaticaStatement> statementMap = new ConcurrentHashMap<>();
   final Map<Integer, AtomicBoolean> flagMap = new ConcurrentHashMap<>();
   protected final long maxRetriesPerExecute;
+  protected final boolean transparentReconnectEnabled;
 
   /**
    * Creates an AvaticaConnection.
@@ -127,6 +129,7 @@ public abstract class AvaticaConnection implements Connection {
       throw new RuntimeException(e);
     }
     this.maxRetriesPerExecute = getNumStatementRetries(info);
+    this.transparentReconnectEnabled = config().transparentReconnectionEnabled();
   }
 
   /** Computes the number of retries
@@ -553,7 +556,6 @@ public abstract class AvaticaConnection implements Connection {
           signature2 = executeResult.resultSets.get(0).signature;
         }
       } catch (Exception e) {
-        e.printStackTrace();
         throw HELPER.createException(e.getMessage(), e);
       }
 
@@ -793,7 +795,8 @@ public abstract class AvaticaConnection implements Connection {
         return callable.call();
       } catch (AvaticaClientRuntimeException e) {
         lastException = e;
-        if (ErrorResponse.MISSING_CONNECTION_ERROR_CODE == e.getErrorCode()) {
+        if (ErrorResponse.MISSING_CONNECTION_ERROR_CODE == e.getErrorCode()
+                && transparentReconnectEnabled) {
           this.openConnection();
           continue;
         }
