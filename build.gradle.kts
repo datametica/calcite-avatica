@@ -98,7 +98,7 @@ tasks.validateBeforeBuildingReleaseArtifacts {
 
 val String.v: String get() = rootProject.extra["$this.version"] as String
 
-val buildVersion = "calcite.avatica".v + releaseParams.snapshotSuffix
+val buildVersion = "calcite.avatica".v
 
 println("Building Apache Calcite Avatica $buildVersion")
 
