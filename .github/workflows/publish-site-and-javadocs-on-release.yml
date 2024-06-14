@@ -25,16 +25,16 @@ jobs:
   publish-website:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Build site
         working-directory: site
         run: |
-          docker-compose run -e JEKYLL_UID=$(id -u) -e JEKYLL_GID=$(id -g) build-site
+          docker compose run -e JEKYLL_UID=$(id -u) -e JEKYLL_GID=$(id -g) build-site
       - name: Build javadoc
         working-directory: site
         run: |
-          docker-compose run generate-javadoc
-      - uses: actions/checkout@v3
+          docker compose run generate-javadoc
+      - uses: actions/checkout@v4
         with:
           repository: apache/calcite-site
           path: calcite-site

@@ -146,7 +146,7 @@ val javadocAggregate by tasks.registering(Javadoc::class) {
 
     classpath = files(sourceSets.map { set -> set.map { it.output + it.compileClasspath } })
     setSource(sourceSets.map { set -> set.map { it.allJava } })
-    setDestinationDir(file("$buildDir/docs/javadocAggregate"))
+    setDestinationDir(file(layout.buildDirectory.get().file("docs/javadocAggregate")))
 }
 
 /** Similar to {@link #javadocAggregate} but includes tests.
@@ -161,7 +161,7 @@ val javadocAggregateIncludingTests by tasks.registering(Javadoc::class) {
 
     classpath = files(sourceSets.map { set -> set.map { it.output + it.compileClasspath } })
     setSource(sourceSets.map { set -> set.map { it.allJava } })
-    setDestinationDir(file("$buildDir/docs/javadocAggregateIncludingTests"))
+    setDestinationDir(file(layout.buildDirectory.get().file("docs/javadocAggregateIncludingTests")))
 }
 
 allprojects {
@@ -209,7 +209,9 @@ allprojects {
     if (!skipCheckstyle) {
         apply<CheckstylePlugin>()
         dependencies {
-            checkstyle("com.puppycrawl.tools:checkstyle:${"checkstyle".v}")
+            val checkstyleVersion = if (JavaVersion.current() == JavaVersion.VERSION_1_8)
+                "jdk8.checkstyle".v else "checkstyle".v
+            checkstyle("com.puppycrawl.tools:checkstyle:$checkstyleVersion")
         }
         checkstyle {
             // Current one is ~8.8
@@ -239,6 +241,8 @@ allprojects {
             (options as StandardJavadocDocletOptions).apply {
                 // Please refrain from using non-ASCII chars below since the options are passed as
                 // javadoc.options file which is parsed with "default encoding"
+                // locale should be placed at the head of any options: https://docs.gradle.org/current/javadoc/org/gradle/external/javadoc/CoreJavadocOptions.html#getLocale
+                locale = "en_US"
                 noTimestamp.value = true
                 showFromProtected()
                 // javadoc: error - The code being documented uses modules but the packages
@@ -263,7 +267,7 @@ allprojects {
     }
 
     plugins.withType<JavaPlugin> {
-        configure<JavaPluginConvention> {
+        configure<JavaPluginExtension> {
             sourceCompatibility = JavaVersion.VERSION_1_8
             targetCompatibility = JavaVersion.VERSION_1_8
         }
@@ -465,11 +469,12 @@ allprojects {
             archives(sourcesJar)
         }
 
-        val archivesBaseName = when (path) {
-            ":shaded:avatica" -> "avatica"
-            else -> "avatica-$name"
+        base {
+            archivesName.set(when (path) {
+                ":shaded:avatica" -> "avatica"
+                else -> "avatica-$name"
+            })
         }
-        setProperty("archivesBaseName", archivesBaseName)
 
         configure<PublishingExtension> {
             if (project.path == ":") {
@@ -479,7 +484,7 @@ allprojects {
             extraMavenPublications()
             publications {
                 create<MavenPublication>(project.name) {
-                    artifactId = archivesBaseName
+                    artifactId = base.archivesName.get()
                     version = rootProject.version.toString()
                     description = project.description
                     from(components["java"])

@@ -790,12 +790,10 @@ public class DateTimeUtilsTest {
     checkDateString("0200-01-01", d200);
     final int d100 = d200 - century + 1;
     checkDateString("0100-01-01", d100);
-    final int d000 = d100 - century;
-    checkDateString("0000-01-01", d000);
   }
 
   @Test public void testDateConversion() {
-    for (int i = 0; i < 4000; ++i) {
+    for (int i = 1; i < 4000; ++i) {
       for (int j = 1; j <= 12; ++j) {
         String date = String.format(Locale.ENGLISH, "%04d-%02d-28", i, j);
         assertThat(unixDateToString(ymdToUnixDate(i, j, 28)), is(date));
@@ -883,13 +881,13 @@ public class DateTimeUtilsTest {
     assertThat((int) date, is(date1));
 
     assertThat(subtractMonths(date1, date0),
-        anyOf(is(months), is(months + 1)));
+        anyOf(is(months - 1), is(months), is(months + 1)));
     assertThat(subtractMonths(date1 + 1, date0),
         anyOf(is(months), is(months + 1)));
     assertThat(subtractMonths(date1, date0 + 1),
         anyOf(is(months), is(months - 1)));
     assertThat(subtractMonths(d2ts(date1, 1), d2ts(date0, 0)),
-        anyOf(is(months), is(months + 1)));
+        anyOf(is(months - 1), is(months), is(months + 1)));
     assertThat(subtractMonths(d2ts(date1, 0), d2ts(date0, 1)),
         anyOf(is(months - 1), is(months), is(months + 1)));
   }
@@ -898,6 +896,60 @@ public class DateTimeUtilsTest {
    * into a timestamp (milliseconds since epoch). */
   private long d2ts(int date, int millis) {
     return date * DateTimeUtils.MILLIS_PER_DAY + millis;
+  }
+
+  @Test public void testSubtractMonths() {
+    assertThat(subtractMonths(
+            ymdToUnixDate(2004, 9, 11),
+            ymdToUnixDate(2004, 9, 11)), is(0));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2005, 9, 11),
+            ymdToUnixDate(2004, 9, 11)), is(12));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2006, 9, 11),
+            ymdToUnixDate(2004, 9, 11)), is(24));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2007, 9, 11),
+            ymdToUnixDate(2004, 9, 11)), is(36));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2004, 9, 11),
+            ymdToUnixDate(2005, 9, 11)), is(-12));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2003, 9, 11),
+            ymdToUnixDate(2005, 9, 11)), is(-24));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2005, 2, 28),
+            ymdToUnixDate(2004, 2, 28)), is(12));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2005, 2, 28),
+            ymdToUnixDate(2004, 2, 29)), is(11));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2005, 2, 28),
+            ymdToUnixDate(2004, 2, 28)), is(12));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2005, 3, 28),
+            ymdToUnixDate(2004, 3, 29)), is(11));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2004, 2, 29),
+            ymdToUnixDate(2003, 2, 28)), is(12));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2005, 2, 28),
+            ymdToUnixDate(2003, 2, 28)), is(24));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2001, 10, 10),
+            ymdToUnixDate(1999, 9, 11)), is(24));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2001, 9, 11),
+            ymdToUnixDate(1999, 9, 11)), is(24));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2001, 5, 1),
+            ymdToUnixDate(2001, 2, 1)), is(3));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2000, 2, 29),
+            ymdToUnixDate(2000, 3, 28)), is(0));
+    assertThat(subtractMonths(
+            ymdToUnixDate(2000, 2, 29),
+            ymdToUnixDate(1991, 3, 28)), is(107));
   }
 
   @Test public void testUnixTimestamp() {
@@ -1627,6 +1679,24 @@ public class DateTimeUtilsTest {
    * Test exception is raised if date in inappropriate meaning.
    */
   @Test public void testBrokenDate() {
+    // Test case for https://issues.apache.org/jira/browse/CALCITE-6248
+    // [CALCITE-6248] Illegal dates are accepted by casts
+    assertThrows(() -> DateTimeUtils.dateStringToUnixDate("2023-02-29"),
+        IllegalArgumentException.class,
+        is("Value of DAY field is out of range in '2023-02-29'"));
+
+    // Test case for https://issues.apache.org/jira/browse/CALCITE-6248
+    // [CALCITE-6248] Illegal dates are accepted by casts
+    assertThrows(() -> DateTimeUtils.dateStringToUnixDate("2023-13-1"),
+        IllegalArgumentException.class,
+        is("Value of MONTH field is out of range in '2023-13-1'"));
+
+    // Test case for https://issues.apache.org/jira/browse/CALCITE-6248
+    // [CALCITE-6248] Illegal dates are accepted by casts
+    assertThrows(() -> DateTimeUtils.dateStringToUnixDate("0-1-1"),
+        IllegalArgumentException.class,
+        is("Value of YEAR field is out of range in '0-1-1'"));
+
     // 2023 is not a leap year
     assertThrows(() ->
             DateTimeUtils.timestampStringToUnixDate("2023-02-29 12:00:00.123"),
