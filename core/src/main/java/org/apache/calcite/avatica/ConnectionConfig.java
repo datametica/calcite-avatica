@@ -16,7 +16,6 @@
  */
 package org.apache.calcite.avatica;
 
-import org.apache.calcite.avatica.ha.LBStrategy;
 import org.apache.calcite.avatica.remote.AvaticaHttpClientFactory;
 import org.apache.calcite.avatica.remote.HostnameVerificationConfigurable.HostnameVerification;
 import org.apache.calcite.avatica.remote.Service;
@@ -51,8 +50,6 @@ public interface ConnectionConfig {
   String kerberosPrincipal();
   /** @see BuiltInConnectionProperty#KEYTAB */
   File kerberosKeytab();
-  /** @see BuiltInConnectionProperty#KEYSTORE_TYPE */
-  String keystoreType();
   /** @see BuiltInConnectionProperty#TRUSTSTORE */
   File truststore();
   /** @see BuiltInConnectionProperty#TRUSTSTORE_PASSWORD */
@@ -69,20 +66,6 @@ public interface ConnectionConfig {
   boolean transparentReconnectionEnabled();
   /** @see BuiltInConnectionProperty#FETCH_SIZE */
   int fetchSize();
-  /** @see BuiltInConnectionProperty#USE_CLIENT_SIDE_LB #**/
-  boolean useClientSideLb();
-  /** @see BuiltInConnectionProperty#LB_URLS **/
-  String getLbURLs();
-  /** @see BuiltInConnectionProperty#LB_STRATEGY **/
-  LBStrategy getLBStrategy();
-  /** @see BuiltInConnectionProperty#LB_CONNECTION_FAILOVER_RETRIES **/
-  int getLBConnectionFailoverRetries();
-  /** @see BuiltInConnectionProperty#LB_CONNECTION_FAILOVER_SLEEP_TIME **/
-  long getLBConnectionFailoverSleepTime();
-  /** @see BuiltInConnectionProperty#HTTP_CONNECTION_TIMEOUT **/
-  long getHttpConnectionTimeout();
-  /** @see BuiltInConnectionProperty#HTTP_RESPONSE_TIMEOUT **/
-  long getHttpResponseTimeout();
 }
 
 // End ConnectionConfig.java

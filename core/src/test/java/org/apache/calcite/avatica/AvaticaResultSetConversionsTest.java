@@ -71,29 +71,6 @@ import static org.junit.Assert.fail;
  */
 @RunWith(Parameterized.class)
 public class AvaticaResultSetConversionsTest {
-
-  // UTC: 2016-10-10 20:18:38.123
-  // October 10 is considered DST in all time zones that observe DST (both hemispheres), so tests
-  // using this value will cover daylight time zone conversion when run in a location that observes
-  // DST. This is just a matter of coverage; all tests must succeed no matter where the host is.
-  private static final long DST_INSTANT = 1476130718123L;
-  private static final String DST_DATE_STRING = "2016-10-10";
-  private static final String DST_TIME_STRING = "20:18:38";
-  private static final String DST_TIMESTAMP_STRING = "2016-10-10 20:18:38";
-
-  // UTC: 2016-11-14 11:32:03.242
-  // There is no date where all time zones (both hemispheres) are on standard time, but all northern
-  // time zones observe standard time by mid-November. Tests using this value may or may not
-  // exercise standard time zone conversion, but this is just a matter of coverage; all tests must
-  // succeed no matter where the host is.
-  private static final long STANDARD_INSTANT = 1479123123242L;
-
-  // UTC: 00:24:36.123
-  private static final long VALID_TIME = 1476123L;
-
-  // UTC: 41:05:12.242
-  private static final long OVERFLOW_TIME = 147912242L;
-
   /**
    * A fake test driver for test.
    */
@@ -238,15 +215,15 @@ public class AvaticaResultSetConversionsTest {
       List<Object> row = Collections.<Object>singletonList(
           new Object[] {
               true, (byte) 1, (short) 2, 3, 4L, 5.0f, 6.0d, "testvalue",
-              new Date(DST_INSTANT), new Time(DST_INSTANT),
-              new Timestamp(DST_INSTANT),
+              new Date(1476130718123L), new Time(1476130718123L),
+              new Timestamp(1476130718123L),
               Arrays.asList(1, 2, 3),
               new StructImpl(Arrays.asList(42, false)),
               true,
               null,
               Arrays.asList(123, 18234),
-              Arrays.asList(DST_INSTANT, STANDARD_INSTANT),
-              Arrays.asList(VALID_TIME, OVERFLOW_TIME),
+              Arrays.asList(1476130718123L, 1479123123242L),
+              Arrays.asList(1476123L, 147912242L),
               Arrays.asList(1, 1.1)
           });
 
@@ -676,7 +653,7 @@ public class AvaticaResultSetConversionsTest {
           ColumnMetaData.scalar(Types.TIME, "TIME", ColumnMetaData.Rep.NUMBER);
       Array expectedArray =
           new ArrayFactoryImpl(TimeZone.getTimeZone("UTC")).createArray(
-              intType, Arrays.asList(VALID_TIME, OVERFLOW_TIME));
+              intType, Arrays.asList(1476123L, 147912242L));
       assertTrue(ArrayImpl.equalContents(expectedArray, g.getArray(resultSet)));
     }
   }
@@ -694,7 +671,7 @@ public class AvaticaResultSetConversionsTest {
           ColumnMetaData.scalar(Types.TIMESTAMP, "TIMESTAMP", ColumnMetaData.Rep.PRIMITIVE_LONG);
       Array expectedArray =
           new ArrayFactoryImpl(TimeZone.getTimeZone("UTC")).createArray(
-              intType, Arrays.asList(DST_INSTANT, STANDARD_INSTANT));
+              intType, Arrays.asList(1476130718123L, 1479123123242L));
       assertTrue(ArrayImpl.equalContents(expectedArray, g.getArray(resultSet)));
     }
   }
@@ -1009,7 +986,7 @@ public class AvaticaResultSetConversionsTest {
     }
 
     @Override public void testGetString(ResultSet resultSet) throws SQLException {
-      assertEquals(DST_DATE_STRING, g.getString(resultSet));
+      assertEquals("2016-10-10", g.getString(resultSet));
     }
 
     @Override public void testGetBoolean(ResultSet resultSet) throws SQLException {
@@ -1033,7 +1010,7 @@ public class AvaticaResultSetConversionsTest {
     }
 
     @Override public void testGetDate(ResultSet resultSet, Calendar calendar) throws SQLException {
-      assertEquals(new Date(DST_INSTANT), g.getDate(resultSet, calendar));
+      assertEquals(new Date(1476130718123L), g.getDate(resultSet, calendar));
     }
   }
 
@@ -1046,7 +1023,7 @@ public class AvaticaResultSetConversionsTest {
     }
 
     @Override public void testGetString(ResultSet resultSet) throws SQLException {
-      assertEquals(DST_TIME_STRING, g.getString(resultSet));
+      assertEquals("20:18:38", g.getString(resultSet));
     }
 
     @Override public void testGetBoolean(ResultSet resultSet) throws SQLException {
@@ -1054,23 +1031,23 @@ public class AvaticaResultSetConversionsTest {
     }
 
     @Override public void testGetByte(ResultSet resultSet) throws SQLException {
-      assertEquals((byte) DST_INSTANT, g.getByte(resultSet));
+      assertEquals((byte) -85, g.getByte(resultSet));
     }
 
     @Override public void testGetShort(ResultSet resultSet) throws SQLException {
-      assertEquals((short) (DST_INSTANT % DateTimeUtils.MILLIS_PER_DAY), g.getShort(resultSet));
+      assertEquals((short) -20053, g.getShort(resultSet));
     }
 
     @Override public void testGetInt(ResultSet resultSet) throws SQLException {
-      assertEquals((int) (DST_INSTANT % DateTimeUtils.MILLIS_PER_DAY), g.getInt(resultSet));
+      assertEquals(73118123, g.getInt(resultSet));
     }
 
     @Override public void testGetLong(ResultSet resultSet) throws SQLException {
-      assertEquals(DST_INSTANT % DateTimeUtils.MILLIS_PER_DAY, g.getLong(resultSet));
+      assertEquals(73118123, g.getLong(resultSet));
     }
 
     @Override public void testGetTime(ResultSet resultSet, Calendar calendar) throws SQLException {
-      assertEquals(new Time(DST_INSTANT), g.getTime(resultSet, calendar));
+      assertEquals(new Time(1476130718123L), g.getTime(resultSet, calendar));
     }
   }
 
@@ -1083,7 +1060,7 @@ public class AvaticaResultSetConversionsTest {
     }
 
     @Override public void testGetString(ResultSet resultSet) throws SQLException {
-      assertEquals(DST_TIMESTAMP_STRING, g.getString(resultSet));
+      assertEquals("2016-10-10 20:18:38", g.getString(resultSet));
     }
 
     @Override public void testGetBoolean(ResultSet resultSet) throws SQLException {
@@ -1091,32 +1068,32 @@ public class AvaticaResultSetConversionsTest {
     }
 
     @Override public void testGetByte(ResultSet resultSet) throws SQLException {
-      assertEquals((byte) DST_INSTANT, g.getByte(resultSet));
+      assertEquals((byte) -85, g.getByte(resultSet));
     }
 
     @Override public void testGetShort(ResultSet resultSet) throws SQLException {
-      assertEquals((short) DST_INSTANT, g.getShort(resultSet));
+      assertEquals((short) 16811, g.getShort(resultSet));
     }
 
     @Override public void testGetInt(ResultSet resultSet) throws SQLException {
-      assertEquals((int) DST_INSTANT, g.getInt(resultSet));
+      assertEquals(-1338031701, g.getInt(resultSet));
     }
 
     @Override public void testGetLong(ResultSet resultSet) throws SQLException {
-      assertEquals(DST_INSTANT, g.getLong(resultSet));
+      assertEquals(1476130718123L, g.getLong(resultSet));
     }
 
     @Override public void testGetDate(ResultSet resultSet, Calendar calendar) throws SQLException {
-      assertEquals(new Date(DST_INSTANT), g.getDate(resultSet, calendar));
+      assertEquals(new Date(1476130718123L), g.getDate(resultSet, calendar));
     }
 
     @Override public void testGetTime(ResultSet resultSet, Calendar calendar) throws SQLException {
-      assertEquals(new Time(DST_INSTANT), g.getTime(resultSet, calendar));
+      assertEquals(new Time(1476130718123L), g.getTime(resultSet, calendar));
     }
 
     @Override public void testGetTimestamp(ResultSet resultSet, Calendar calendar)
         throws SQLException {
-      assertEquals(new Timestamp(DST_INSTANT), g.getTimestamp(resultSet, calendar));
+      assertEquals(new Timestamp(1476130718123L), g.getTimestamp(resultSet, calendar));
     }
   }
 
@@ -1133,7 +1110,7 @@ public class AvaticaResultSetConversionsTest {
     }
   }
 
-  private static final Calendar UTC_CALENDAR = DateTimeUtils.calendar();
+  private static final Calendar DEFAULT_CALENDAR = DateTimeUtils.calendar();
 
   private static Connection connection = null;
   private static ResultSet resultSet = null;
@@ -1305,17 +1282,17 @@ public class AvaticaResultSetConversionsTest {
 
   @Test
   public void testGetDate() throws SQLException {
-    testHelper.testGetDate(resultSet, UTC_CALENDAR);
+    testHelper.testGetDate(resultSet, DEFAULT_CALENDAR);
   }
 
   @Test
   public void testGetTime() throws SQLException {
-    testHelper.testGetTime(resultSet, UTC_CALENDAR);
+    testHelper.testGetTime(resultSet, DEFAULT_CALENDAR);
   }
 
   @Test
   public void testGetTimestamp() throws SQLException {
-    testHelper.testGetTimestamp(resultSet, UTC_CALENDAR);
+    testHelper.testGetTimestamp(resultSet, DEFAULT_CALENDAR);
   }
 
   @Test

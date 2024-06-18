@@ -154,7 +154,7 @@ public abstract class AbstractCursor implements Cursor {
       case PRIMITIVE_INT:
       case INTEGER:
       case NUMBER:
-        return new TimeFromNumberAccessor(getter, localCalendar, columnMetaData.precision);
+        return new TimeFromNumberAccessor(getter, localCalendar);
       case JAVA_SQL_TIME:
         return new TimeAccessor(getter, localCalendar);
       default:
@@ -165,22 +165,22 @@ public abstract class AbstractCursor implements Cursor {
       case PRIMITIVE_LONG:
       case LONG:
       case NUMBER:
-        return new TimestampFromNumberAccessor(getter, localCalendar, columnMetaData.precision);
+        return new TimestampFromNumberAccessor(getter, localCalendar);
       case JAVA_SQL_TIMESTAMP:
-        return new TimestampAccessor(getter, localCalendar, columnMetaData.precision);
+        return new TimestampAccessor(getter, localCalendar);
       case JAVA_UTIL_DATE:
-        return new TimestampFromUtilDateAccessor(getter, localCalendar, columnMetaData.precision);
+        return new TimestampFromUtilDateAccessor(getter, localCalendar);
       default:
         throw new AssertionError("bad " + columnMetaData.type.rep);
       }
-    case Types.TIME_WITH_TIMEZONE:
+    case 2013: // TIME_WITH_TIMEZONE
       switch (columnMetaData.type.rep) {
       case STRING:
         return new StringAccessor(getter);
       default:
         throw new AssertionError("bad " + columnMetaData.type.rep);
       }
-    case Types.TIMESTAMP_WITH_TIMEZONE:
+    case 2014: // TIMESTAMP_WITH_TIMEZONE
       switch (columnMetaData.type.rep) {
       case STRING:
         return new StringAccessor(getter);
@@ -241,11 +241,11 @@ public abstract class AbstractCursor implements Cursor {
   /** Accesses a timestamp value as a string.
    * The timestamp is in SQL format (e.g. "2013-09-22 22:30:32"),
    * not Java format ("2013-09-22 22:30:32.123"). */
-  private static String timestampAsString(long v, Calendar calendar, int precision) {
+  private static String timestampAsString(long v, Calendar calendar) {
     if (calendar != null) {
       v -= calendar.getTimeZone().getOffset(v);
     }
-    return DateTimeUtils.unixTimestampToString(v, precision);
+    return DateTimeUtils.unixTimestampToString(v);
   }
 
   /** Accesses a date value as a string, e.g. "2013-09-22". */
@@ -255,11 +255,11 @@ public abstract class AbstractCursor implements Cursor {
   }
 
   /** Accesses a time value as a string, e.g. "22:30:32". */
-  private static String timeAsString(int v, Calendar calendar, int precision) {
+  private static String timeAsString(int v, Calendar calendar) {
     if (calendar != null) {
       v -= calendar.getTimeZone().getOffset(v);
     }
-    return DateTimeUtils.unixTimeToString(v, precision);
+    return DateTimeUtils.unixTimeToString(v);
   }
 
   /** Implementation of {@link Cursor.Accessor}. */
@@ -955,12 +955,10 @@ public abstract class AbstractCursor implements Cursor {
    */
   static class TimeFromNumberAccessor extends NumberAccessor {
     private final Calendar localCalendar;
-    private final int precision;
 
-    TimeFromNumberAccessor(Getter getter, Calendar localCalendar, int precision) {
+    TimeFromNumberAccessor(Getter getter, Calendar localCalendar) {
       super(getter, 0);
       this.localCalendar = localCalendar;
-      this.precision = precision;
     }
 
     @Override public Object getObject() throws SQLException {
@@ -988,7 +986,7 @@ public abstract class AbstractCursor implements Cursor {
       if (v == null) {
         return null;
       }
-      return timeAsString(v.intValue(), null, this.precision);
+      return timeAsString(v.intValue(), null);
     }
 
     protected Number getNumber() throws SQLException {
@@ -1015,12 +1013,10 @@ public abstract class AbstractCursor implements Cursor {
    */
   static class TimestampFromNumberAccessor extends NumberAccessor {
     private final Calendar localCalendar;
-    private final int precision;
 
-    TimestampFromNumberAccessor(Getter getter, Calendar localCalendar, int precision) {
+    TimestampFromNumberAccessor(Getter getter, Calendar localCalendar) {
       super(getter, 0);
       this.localCalendar = localCalendar;
-      this.precision = precision;
     }
 
     @Override public Object getObject() throws SQLException {
@@ -1056,7 +1052,7 @@ public abstract class AbstractCursor implements Cursor {
       if (v == null) {
         return null;
       }
-      return timestampAsString(v.longValue(), null, this.precision);
+      return timestampAsString(v.longValue(), null);
     }
 
     protected Number getNumber() throws SQLException {
@@ -1159,8 +1155,7 @@ public abstract class AbstractCursor implements Cursor {
         return null;
       }
       final int unix = DateTimeUtils.sqlTimeToUnixTime(time, localCalendar);
-      // java.sql.Time only supports a precision of 0
-      return timeAsString(unix, null, 0);
+      return timeAsString(unix, null);
     }
 
     @Override public long getLong() throws SQLException {
@@ -1183,12 +1178,10 @@ public abstract class AbstractCursor implements Cursor {
    */
   static class TimestampAccessor extends ObjectAccessor {
     private final Calendar localCalendar;
-    private final int precision;
 
-    TimestampAccessor(Getter getter, Calendar localCalendar, int precision) {
+    TimestampAccessor(Getter getter, Calendar localCalendar) {
       super(getter);
       this.localCalendar = localCalendar;
-      this.precision = precision;
     }
 
     @Override public Timestamp getTimestamp(Calendar calendar) throws SQLException {
@@ -1227,7 +1220,7 @@ public abstract class AbstractCursor implements Cursor {
       }
       final long unix =
           DateTimeUtils.sqlTimestampToUnixTimestamp(timestamp, localCalendar);
-      return timestampAsString(unix, null, this.precision);
+      return timestampAsString(unix, null);
     }
 
     @Override public long getLong() throws SQLException {
@@ -1248,13 +1241,11 @@ public abstract class AbstractCursor implements Cursor {
    */
   static class TimestampFromUtilDateAccessor extends ObjectAccessor {
     private final Calendar localCalendar;
-    private final int precision;
 
     TimestampFromUtilDateAccessor(Getter getter,
-        Calendar localCalendar, int precision) {
+        Calendar localCalendar) {
       super(getter);
       this.localCalendar = localCalendar;
-      this.precision = precision;
     }
 
     @Override public Timestamp getTimestamp(Calendar calendar) throws SQLException {
@@ -1291,7 +1282,7 @@ public abstract class AbstractCursor implements Cursor {
         return null;
       }
       final long unix = DateTimeUtils.utilDateToUnixTimestamp(date, localCalendar);
-      return timestampAsString(unix, null, this.precision);
+      return timestampAsString(unix, null);
     }
 
     @Override public long getLong() throws SQLException {

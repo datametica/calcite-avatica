@@ -28,128 +28,6 @@ For a full list of releases, see
 Downloads are available on the
 [downloads page]({{ site.baseurl }}/downloads/avatica.html).
 
-## <a href="https://github.com/apache/calcite-avatica/releases/tag/rel/avatica-1.25.0">1.25.0</a> / 2024-04-05
-{: #v1-25-0}
-
-Avatica 1.25.0 is a routine release featuring support for JDK 21, Gradle 8.5 and several bug fixes.
-
-*Breaking Change*: Due to [<a href="https://issues.apache.org/jira/browse/CALCITE-6282">CALCITE-6282</a>] and
-[<a href="https://issues.apache.org/jira/browse/CALCITE-6248">CALCITE-6248</a>], illegal dates are no longer
-accepted by casts and time precision will not be ignored when returning TIME results, respectively. If you are relying
-on this behavior, your applications may break.
-
-Compatibility: This release is tested on Linux, macOS, Microsoft Windows;
-using JDK/OpenJDK versions 8, 11, 17, 21;
-other software versions as specified in `gradle.properties`.
-
-Contributors to this release:
-Benchao Li,
-Francis Chuang (release manager),
-Istvan Toth,
-Mihai Budiu,
-Satya Kommula,
-Sergey Nuyanzin,
-Vaibhav Joshi.
-
-Features and bug fixes
-
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-6280">CALCITE-6280</a>]
-  Jetty version number leaked by Avatica http server
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-6209">CALCITE-6209</a>]
-  Long queries are failing with "java.net.SocketTimeoutException: Read timed out" after 3 minutes
-  make socket timeout configurable via the new 'http_response_timeout' URL option
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-6137">CALCITE-6137</a>]
-  Upgrade Gradle from 8.1.1 to 8.5, support jdk21
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-6282">CALCITE-6282</a>]
-  Avatica ignores time precision when returning TIME results
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-6248">CALCITE-6248</a>]
-  Illegal dates are accepted by casts
-
-Build and tests
-
-* Install git and set safe.directory when using docker release script to promote release
-* Disable JIRA worklog notifications for GitHub PRs
-* Apply same vcs.xml as for Calcite
-
-Website and documentation
-
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-6212">CALCITE-6212</a>]
-  Config locale = en_US for javadoc task
-* Add Calcite CLI tool to list of Avatica Clients on website
-
-## <a href="https://github.com/apache/calcite-avatica/releases/tag/rel/avatica-1.24.0">1.24.0</a> / 2023-12-04
-{: #v1-24-0}
-
-Apache Calcite Avatica 1.24.0 features mostly dependency upgrades with some minor bug fixes and features.
-
-*Breaking Change*: Due to [CALCITE-5678](https://issues.apache.org/jira/browse/CALCITE-5678), date literals not
-satisfying the Gregorian calendar will be rejected.
-
-Compatibility: This release is tested
-on Linux, macOS, Microsoft Windows;
-using Oracle JDK 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19;
-using IBM Java 8;
-Guava versions 14.0.1 to 32.1.1-jre;
-other software versions as specified in `gradle.properties`.
-
-Contributors to this release:
-Evgeniy Stanilovskiy,
-Francis Chuang (Release Manager),
-Greg Hart,
-Istvan Toth,
-Mihai Budiu,
-Richard Antal,
-Sergey Nuyanzin,
-TJ Banghart
-Vaibhav Joshi,
-Will Noble
-
-Features and bug fixes
-
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-5494">CALCITE-5494</a>]
-  Time zone tests in DateTimeUtilsTest should pass in Europe/London
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-5440">CALCITE-5440</a>]
-  Bump gradle from 7.4.2 to 7.6.1
-* Bump forbidden apis from 3.2 to 3.4
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-5567">CALCITE-5567</a>]
-  Update mockito from 4.4.0 to 4.11.0 and enable jdk19
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-5678">CALCITE-5678</a>]
-  Validate date, time and timestamp literals per ISO-8601
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-5581">CALCITE-5581</a>]
-  Implement Basic client side load balancing in Avatica Driver
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-5803">CALCITE-5803</a>]
-  Migrate Avatica to Gradle 8.1.1
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-5812">CALCITE-5812</a>]
-  Gradle tasks fails when creating the javadoc aggregation
-  Exclude "bom" project from the javadoc aggregation since it does not have "main" and "test" objects causing "tasks" to
-  fail.
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-5804">CALCITE-5804</a>]
-  Upgrade jackson version from 2.14.1 to 2.15.2
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-5748">CALCITE-5748</a>]
-  Support Guava 32.1.1-jre
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-5890">CALCITE-5890</a>]
-  Handle non-JKS truststores in Avatica client
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-5981">CALCITE-5981</a>]
-  `TIMESTAMPDIFF` function returns incorrect result
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-6034">CALCITE-6034</a>]
-  Add `isAutoIncrement` and `isGenerated` args to `MetaColumn` constructor
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-5536">CALCITE-5536</a>]
-  Clean up some of the magic numbers in `AvaticaResultSetConversionsTest` and `AbstractCursor`
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-6113">CALCITE-6113</a>]
-  Update HttpComponents Core to 5.2.3 and HttpComponents Client to 5.2.1 in Avatica
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-6141">CALCITE-6141</a>]
-  Add `jdk8.checkstyle` property, use `jdk8.checkstyle` in case of java 8
-
-Build and tests
-
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-6106">CALCITE-6106</a>]
-  Switch from gradle to eclipse-temurin image for avatica docker-compose release commands
-* [<a href="https://issues.apache.org/jira/browse/CALCITE-6107">CALCITE-6107</a>]
-  Upgrade vlsi-release-plugins to 1.90
-* Use eclipse-temurin:8 images
-* Install svn in docker release script
-* Install svn when using docker release script to promote release
-
 ## <a href="https://github.com/apache/calcite-avatica/releases/tag/rel/avatica-1.23.0">1.23.0</a> / 2023-01-19
 {: #v1-23-0}
 
@@ -181,7 +59,6 @@ other software versions as specified in `gradle.properties`.
 
 Contributors to this release:
 Aleksey Stavrov,
-Dan Zou,
 Francis Chuang,
 Greg Hart,
 Hongbin Ma,
@@ -193,7 +70,8 @@ Oliver Lee,
 Richard Antal,
 Sergey Nuyanzin,
 Stamatis Zampetakis,
-Zhe Hu
+Zhe Hu,
+zoudan
 
 Features and bug fixes
 

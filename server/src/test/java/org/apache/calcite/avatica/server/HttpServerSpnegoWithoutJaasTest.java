@@ -56,7 +56,6 @@ import javax.security.auth.kerberos.KerberosTicket;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -187,14 +186,6 @@ public class HttpServerSpnegoWithoutJaasTest {
     assertEquals(401, conn.getResponseCode());
   }
 
-  @Test public void testServerVersionNotReturnedForUnauthorisedAccess() throws Exception {
-    LOG.info("Connecting to {}", httpServerUrl.toString());
-    HttpURLConnection conn = (HttpURLConnection) httpServerUrl.openConnection();
-    conn.setRequestMethod("GET");
-    assertEquals("Unauthorized response status code", 401, conn.getResponseCode());
-    assertNull("Server information was not expected", conn.getHeaderField("server"));
-  }
-
   @Test public void testAuthenticatedClientsAllowed() throws Exception {
     // Create the subject for the client
     final Subject clientSubject = AvaticaJaasKrbUtil.loginUsingKeytab(
@@ -234,7 +225,7 @@ public class HttpServerSpnegoWithoutJaasTest {
         final AvaticaCommonsHttpClientImpl httpClient =
             new AvaticaCommonsHttpClientImpl(httpServerUrl);
         httpClient.setGSSCredential(credential);
-        httpClient.setHttpClientPool(pool, config);
+        httpClient.setHttpClientPool(pool);
 
         return httpClient.send(new byte[0]);
       }
