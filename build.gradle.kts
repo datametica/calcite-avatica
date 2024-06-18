@@ -140,13 +140,12 @@ val javadocAggregate by tasks.registering(Javadoc::class) {
     description = "Generates aggregate javadoc for all the artifacts"
 
     val sourceSets = allprojects
-        .filter { it.name != "bom" }
         .mapNotNull { it.extensions.findByType<SourceSetContainer>() }
         .map { it.named("main") }
 
     classpath = files(sourceSets.map { set -> set.map { it.output + it.compileClasspath } })
     setSource(sourceSets.map { set -> set.map { it.allJava } })
-    setDestinationDir(file(layout.buildDirectory.get().file("docs/javadocAggregate")))
+    setDestinationDir(file("$buildDir/docs/javadocAggregate"))
 }
 
 /** Similar to {@link #javadocAggregate} but includes tests.
@@ -155,13 +154,12 @@ val javadocAggregateIncludingTests by tasks.registering(Javadoc::class) {
     description = "Generates aggregate javadoc for all the artifacts, including test code"
 
     val sourceSets = allprojects
-        .filter { it.name != "bom" }
         .mapNotNull { it.extensions.findByType<SourceSetContainer>() }
         .flatMap { listOf(it.named("main"), it.named("test")) }
 
     classpath = files(sourceSets.map { set -> set.map { it.output + it.compileClasspath } })
     setSource(sourceSets.map { set -> set.map { it.allJava } })
-    setDestinationDir(file(layout.buildDirectory.get().file("docs/javadocAggregateIncludingTests")))
+    setDestinationDir(file("$buildDir/docs/javadocAggregateIncludingTests"))
 }
 
 allprojects {
@@ -209,9 +207,7 @@ allprojects {
     if (!skipCheckstyle) {
         apply<CheckstylePlugin>()
         dependencies {
-            val checkstyleVersion = if (JavaVersion.current() == JavaVersion.VERSION_1_8)
-                "jdk8.checkstyle".v else "checkstyle".v
-            checkstyle("com.puppycrawl.tools:checkstyle:$checkstyleVersion")
+            checkstyle("com.puppycrawl.tools:checkstyle:${"checkstyle".v}")
         }
         checkstyle {
             // Current one is ~8.8
@@ -241,8 +237,6 @@ allprojects {
             (options as StandardJavadocDocletOptions).apply {
                 // Please refrain from using non-ASCII chars below since the options are passed as
                 // javadoc.options file which is parsed with "default encoding"
-                // locale should be placed at the head of any options: https://docs.gradle.org/current/javadoc/org/gradle/external/javadoc/CoreJavadocOptions.html#getLocale
-                locale = "en_US"
                 noTimestamp.value = true
                 showFromProtected()
                 // javadoc: error - The code being documented uses modules but the packages
@@ -267,7 +261,7 @@ allprojects {
     }
 
     plugins.withType<JavaPlugin> {
-        configure<JavaPluginExtension> {
+        configure<JavaPluginConvention> {
             sourceCompatibility = JavaVersion.VERSION_1_8
             targetCompatibility = JavaVersion.VERSION_1_8
         }
@@ -419,8 +413,8 @@ allprojects {
                     description = "$description (skipped by default, to enable it add -Dspotbugs)"
                 }
                 reports {
-                    html.getRequired().set(reportsForHumans())
-                    xml.getRequired().set(reportsForHumans())
+                    html.isEnabled = reportsForHumans()
+                    xml.isEnabled = !reportsForHumans()
                 }
                 enabled = enableSpotBugs
             }
@@ -469,12 +463,11 @@ allprojects {
             archives(sourcesJar)
         }
 
-        base {
-            archivesName.set(when (path) {
-                ":shaded:avatica" -> "avatica"
-                else -> "avatica-$name"
-            })
+        val archivesBaseName = when (path) {
+            ":shaded:avatica" -> "avatica"
+            else -> "avatica-$name"
         }
+        setProperty("archivesBaseName", archivesBaseName)
 
         configure<PublishingExtension> {
             if (project.path == ":") {
@@ -484,7 +477,7 @@ allprojects {
             extraMavenPublications()
             publications {
                 create<MavenPublication>(project.name) {
-                    artifactId = base.archivesName.get()
+                    artifactId = archivesBaseName
                     version = rootProject.version.toString()
                     description = project.description
                     from(components["java"])

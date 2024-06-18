@@ -59,7 +59,7 @@ public class Driver extends UnregisteredDriver {
    */
   public enum Serialization {
     JSON,
-    PROTOBUF
+    PROTOBUF;
   }
 
   @Override protected String getConnectStringPrefix() {
@@ -77,7 +77,7 @@ public class Driver extends UnregisteredDriver {
   }
 
   @Override protected Collection<ConnectionProperty> getConnectionProperties() {
-    final List<ConnectionProperty> list = new ArrayList<>();
+    final List<ConnectionProperty> list = new ArrayList<ConnectionProperty>();
     Collections.addAll(list, BuiltInConnectionProperty.values());
     Collections.addAll(list, AvaticaRemoteConnectionProperty.values());
     return list;
@@ -135,7 +135,7 @@ public class Driver extends UnregisteredDriver {
         throw new IllegalArgumentException("Unhandled serialization type: " + serializationType);
       }
     } else {
-      service = new MockJsonService(Collections.emptyMap());
+      service = new MockJsonService(Collections.<String, String>emptyMap());
     }
     return service;
   }
@@ -149,14 +149,8 @@ public class Driver extends UnregisteredDriver {
    */
   AvaticaHttpClient getHttpClient(AvaticaConnection connection, ConnectionConfig config) {
     URL url;
-    String urlStr;
-    if (config.useClientSideLb()) {
-      urlStr = config.getLBStrategy().getLbURL(config);
-    } else {
-      urlStr = config.url();
-    }
     try {
-      url = new URL(urlStr);
+      url = new URL(config.url());
     } catch (MalformedURLException e) {
       throw new RuntimeException(e);
     }
@@ -165,56 +159,25 @@ public class Driver extends UnregisteredDriver {
 
     return httpClientFactory.getClient(url, config, connection.getKerberosConnection());
   }
+
   @Override public Connection connect(String url, Properties info)
       throws SQLException {
-    int retries = 0;
-    int currentRetry = 0;
-    long failoverSleepTime = 0;
-    do {
-      long startTime = System.currentTimeMillis();
-      AvaticaConnection conn = (AvaticaConnection) super.connect(url, info);
-      if (conn == null) {
-        // It's not an url for our driver
-        return null;
-      }
+    AvaticaConnection conn = (AvaticaConnection) super.connect(url, info);
+    if (conn == null) {
+      // It's not an url for our driver
+      return null;
+    }
 
-      ConnectionConfig config = conn.config();
-      if (config.useClientSideLb()) {
-        retries = config.getLBConnectionFailoverRetries();
-        failoverSleepTime = config.getLBConnectionFailoverSleepTime();
-      }
+    Service service = conn.getService();
 
-      Service service = conn.getService();
+    // super.connect(...) should be creating a service and setting it in the AvaticaConnection
+    assert null != service;
 
-      // super.connect(...) should be creating a service and setting it in the AvaticaConnection
-      assert null != service;
-      try {
-        service.apply(
-            new Service.OpenConnectionRequest(conn.id,
-                Service.OpenConnectionRequest.serializeProperties(info)));
-        return conn;
-      } catch (Exception e) {
-        long endTime = System.currentTimeMillis();
-        long elapsedTime = endTime - startTime;
-        LOG.warn("Connection Failed: {}", e.getMessage());
-        LOG.debug("Failure detected in: {} milliseconds", elapsedTime);
-        if (currentRetry < retries) {
-          currentRetry++;
-          if (failoverSleepTime > 0) {
-            try {
-              LOG.info("Sleeping for {} milliseconds before load balancer failover",
-                  failoverSleepTime);
-              Thread.sleep(failoverSleepTime);
-            } catch (InterruptedException ex) {
-              throw new SQLException(ex);
-            }
-          }
-          LOG.info("Load balancer failover retry: {}", currentRetry);
-        } else {
-          throw e;
-        }
-      }
-    } while (true);
+    service.apply(
+        new Service.OpenConnectionRequest(conn.id,
+            Service.OpenConnectionRequest.serializeProperties(info)));
+
+    return conn;
   }
 
   Serialization getSerialization(ConnectionConfig config) {

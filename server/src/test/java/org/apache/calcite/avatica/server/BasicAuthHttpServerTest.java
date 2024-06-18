@@ -26,14 +26,11 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.Properties;
 
 import static org.hamcrest.core.StringContains.containsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
@@ -161,15 +158,6 @@ public class BasicAuthHttpServerTest extends HttpAuthBase {
           + " -> HsqlException: invalid authorization specification - not found: USER1",
           e.getMessage());
     }
-  }
-
-  @Test
-  public void testServerVersionNotReturnedForUnauthorisedAccess() throws Exception {
-    URL httpServerUrl = new URL("http://localhost:" + server.getPort());
-    HttpURLConnection conn = (HttpURLConnection) httpServerUrl.openConnection();
-    conn.setRequestMethod("GET");
-    assertEquals("Unauthorized response status code", 401, conn.getResponseCode());
-    assertNull("Server information was not expected", conn.getHeaderField("server"));
   }
 }
 

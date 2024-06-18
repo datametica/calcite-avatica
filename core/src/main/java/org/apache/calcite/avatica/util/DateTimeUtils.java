@@ -30,8 +30,6 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 import java.util.TimeZone;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Utility functions for datetime types: date, time, timestamp.
@@ -58,18 +56,6 @@ public class DateTimeUtils {
   /** The SimpleDateFormat string for ISO timestamps, "yyyy-MM-dd HH:mm:ss". */
   public static final String TIMESTAMP_FORMAT_STRING =
       DATE_FORMAT_STRING + " " + TIME_FORMAT_STRING;
-
-  /** Regex for date, YYYY-MM-DD. */
-  private static final Pattern ISO_DATE_PATTERN =
-      Pattern.compile("^(\\d{4})-([0]\\d|1[0-2])-([0-2]\\d|3[01])$");
-
-  /** Regex for lenient date patterns. */
-  private static final Pattern LENIENT_DATE_PATTERN =
-      Pattern.compile("^\\s*(\\d{1,4})-(\\d{1,2})-(\\d{1,2})\\s*$");
-
-  /** Regex for time, HH:MM:SS. */
-  private static final Pattern ISO_TIME_PATTERN =
-      Pattern.compile("^([0-2]\\d):[0-5]\\d:[0-5]\\d(\\.\\d*)*$");
 
   /** The GMT time zone.
    *
@@ -657,7 +643,6 @@ public class DateTimeUtils {
   }
 
   public static int dateStringToUnixDate(String s) {
-    validateLenientDate(s);
     int hyphen1 = s.indexOf('-');
     int y;
     int m;
@@ -744,129 +729,15 @@ public class DateTimeUtils {
     return r;
   }
 
-  /** Check that the combination year, month, date forms a legal date. */
-  static void checkLegalDate(int year, int month, int day, String full) {
-    if (day > daysInMonth(year, month)) {
-      throw fieldOutOfRange("DAY", full);
-    }
-    if (month < 1 || month > 12) {
-      throw fieldOutOfRange("MONTH", full);
-    }
-    if (year <= 0) {
-      // Year 0 is not really a legal value.
-      throw fieldOutOfRange("YEAR", full);
-    }
-  }
-
-  /** Lenient date validation.  This accepts more date strings
-   * than validateDate: it does not insist on having two-digit
-   * values for days and months, and accepts spaces around the value.
-   * @param s     A string representing a date.
-   */
-  private static void validateLenientDate(String s) {
-    Matcher matcher = LENIENT_DATE_PATTERN.matcher(s);
-    if (matcher.find()) {
-      int year = Integer.parseInt(matcher.group(1));
-      int month = Integer.parseInt(matcher.group(2));
-      int day = Integer.parseInt(matcher.group(3));
-      checkLegalDate(year, month, day, s);
-    } else {
-      throw invalidType("DATE", s);
-    }
-  }
-
-  private static void validateDate(String s, String full) {
-    Matcher matcher = ISO_DATE_PATTERN.matcher(s);
-    if (matcher.find()) {
-      int year = Integer.parseInt(matcher.group(1));
-      int month = Integer.parseInt(matcher.group(2));
-      int day = Integer.parseInt(matcher.group(3));
-      checkLegalDate(year, month, day, full);
-    } else {
-      throw invalidType("DATE", full);
-    }
-  }
-
-  /** Returns the number of days in a month in the proleptic Gregorian calendar
-   * used by ISO-8601.
-   *
-   * <p>"Proleptic" means that we apply the calendar to dates before the
-   * Gregorian calendar was invented (in 1582). Thus, years 0 and 1200 are
-   * considered leap years, and 1500 is not. */
-  private static int daysInMonth(int year, int month) {
-    switch (month) {
-    case 9:
-    case 4:
-    case 6:
-    case 11:
-        // Thirty days hath September,
-        // April, June, and November,
-      return 30;
-
-    default:
-      // All the rest have thirty-one,
-      return 31;
-
-    case 2:
-      // Except February, twenty-eight days clear,
-      // And twenty-nine in each leap year.
-      return isLeapYear(year) ? 29 : 28;
-    }
-  }
-
-  /** Whether a year is considered a leap year in the proleptic Gregorian
-   * calendar. */
-  private static boolean isLeapYear(int year) {
-    return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-  }
-
-  private static void validateTime(String time, String full) {
-    Matcher matcher = ISO_TIME_PATTERN.matcher(time);
-    if (matcher.find()) {
-      int hour = Integer.parseInt(matcher.group(1));
-      if (hour > 23) {
-        throw fieldOutOfRange("HOUR", full);
-      }
-    } else {
-      throw invalidType("TIME", full);
-    }
-  }
-
-  private static IllegalArgumentException fieldOutOfRange(String field,
-      String full) {
-    return new IllegalArgumentException("Value of " + field
-        + " field is out of range in '" + full + "'");
-  }
-
-  private static IllegalArgumentException invalidType(String type,
-      String full) {
-    return new IllegalArgumentException("Invalid " + type + " value, '"
-        + full + "'");
-  }
-
   public static long timestampStringToUnixDate(String s) {
-    try {
-      return timestampStringToUnixDate0(s);
-    } catch (NumberFormatException e) {
-      throw new IllegalArgumentException(e.getMessage());
-    }
-  }
-
-  private static long timestampStringToUnixDate0(String s) {
     final long d;
     final long t;
     s = s.trim();
     int space = s.indexOf(' ');
     if (space >= 0) {
-      String datePart = s.substring(0, space);
-      validateDate(datePart, s);
-      d = dateStringToUnixDate(datePart);
-
-      String timePart = s.substring(space + 1);
-      validateTime(timePart, s);
-      t = timeStringToUnixDate(timePart);
+      d = dateStringToUnixDate(s.substring(0, space));
+      t = timeStringToUnixDate(s, space + 1);
     } else {
-      validateDate(s, s);
       d = dateStringToUnixDate(s);
       t = 0;
     }
@@ -1232,33 +1103,20 @@ public class DateTimeUtils {
     if (date0 < date1) {
       return -subtractMonths(date1, date0);
     }
-
-    int y0 = (int) DateTimeUtils.unixDateExtract(TimeUnitRange.YEAR, date0);
-    int m0 = (int) DateTimeUtils.unixDateExtract(TimeUnitRange.MONTH, date0);
-    int d0 = (int) DateTimeUtils.unixDateExtract(TimeUnitRange.DAY, date0);
-
-    int y1 = (int) DateTimeUtils.unixDateExtract(TimeUnitRange.YEAR, date1);
-    int m1 = (int) DateTimeUtils.unixDateExtract(TimeUnitRange.MONTH, date1);
-    int d1 = (int) DateTimeUtils.unixDateExtract(TimeUnitRange.DAY, date1);
-
-    int years = y0 - y1;
-    boolean adjust = m0 < m1 || m0 == m1 && d0 < d1;
-    if (adjust) {
-      years--;
+    // Start with an estimate.
+    // Since no month has more than 31 days, the estimate is <= the true value.
+    int m = (date0 - date1) / 31;
+    for (;;) {
+      int date2 = addMonths(date1, m);
+      if (date2 >= date0) {
+        return m;
+      }
+      int date3 = addMonths(date1, m + 1);
+      if (date3 > date0) {
+        return m;
+      }
+      ++m;
     }
-
-    int months = 12 * years;
-    if (adjust) {
-      months += 12 - (m1 - m0);
-    } else {
-      months += m0 - m1;
-    }
-
-    if (d0 < d1) {
-      months--;
-    }
-
-    return months;
   }
 
   public static int subtractMonths(long t0, long t1) {

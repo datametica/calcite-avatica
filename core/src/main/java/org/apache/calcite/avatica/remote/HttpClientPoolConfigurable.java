@@ -16,8 +16,6 @@
  */
 package org.apache.calcite.avatica.remote;
 
-import org.apache.calcite.avatica.ConnectionConfig;
-
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 
 /**
@@ -29,10 +27,9 @@ public interface HttpClientPoolConfigurable {
    * Sets a PoolingHttpClientConnectionManager containing the collection of SSL/TLS server
    * keys and truststores to use for HTTPS calls.
    *
-   * @param pool   The http connection pool
-   * @param config The connection config
+   * @param pool The http connection pool
    */
-  void setHttpClientPool(PoolingHttpClientConnectionManager pool, ConnectionConfig config);
+  void setHttpClientPool(PoolingHttpClientConnectionManager pool);
 }
 
 // End HttpClientPoolConfigurable.java
