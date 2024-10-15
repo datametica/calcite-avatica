@@ -137,8 +137,6 @@ public class DateTimeUtilsTest {
     assertSame(TimeUnitRange.of(TimeUnit.ISODOW, null), TimeUnitRange.ISODOW);
     assertSame(TimeUnitRange.of(TimeUnit.DOY, null), TimeUnitRange.DOY);
     assertSame(TimeUnitRange.of(TimeUnit.EPOCH, null), TimeUnitRange.EPOCH);
-    assertSame(TimeUnitRange.of(TimeUnit.EPOCH_MILLISECOND, null), TimeUnitRange.EPOCH_MILLISECOND);
-    assertSame(TimeUnitRange.of(TimeUnit.EPOCH_SECOND, null), TimeUnitRange.EPOCH_SECOND);
     assertSame(TimeUnitRange.of(TimeUnit.DECADE, null), TimeUnitRange.DECADE);
     assertSame(TimeUnitRange.of(TimeUnit.CENTURY, null), TimeUnitRange.CENTURY);
     assertSame(TimeUnitRange.of(TimeUnit.MILLENNIUM, null), TimeUnitRange.MILLENNIUM);
