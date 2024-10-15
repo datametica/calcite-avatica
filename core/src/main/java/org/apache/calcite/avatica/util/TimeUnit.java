@@ -26,9 +26,8 @@ import java.math.BigDecimal;
  * interval.
  *
  * <p>The others ({@link #QUARTER}, {@link #WEEK}, {@link #ISOWEEK}, {@link #MILLISECOND},
- * {@link #DOW}, {@link #DOY}, {@link #EPOCH}, {@link #EPOCH}, {@link #DECADE}, {@link #CENTURY},
- * {@link #MILLENNIUM}, {@link #MICROSECOND}, {@link #NANOSECOND}, {@link #ISODOW},
- * {@link #EPOCH_SECOND}, {@link #EPOCH_MILLISECOND}
+ * {@link #DOW}, {@link #DOY}, {@link #EPOCH}, {@link #DECADE}, {@link #CENTURY},
+ * {@link #MILLENNIUM}, {@link #MICROSECOND}, {@link #NANOSECOND}, {@link #ISODOW}
  * and {@link #ISOYEAR}) are convenient to use internally,
  * when converting to and from UNIX timestamps.
  * And also may be arguments to the {@code EXTRACT}, {@code TIMESTAMPADD} and
@@ -60,8 +59,6 @@ public enum TimeUnit {
   ISODOW(false, '-', null, null),
   DOY(false, '-', null, null),
   EPOCH(false, '*', null, null),
-  EPOCH_SECOND(false, '*', null, null),
-  EPOCH_MILLISECOND(false, '*', null, null),
   DECADE(true, '*', BigDecimal.valueOf(120) /* months */, null),
   CENTURY(true, '*', BigDecimal.valueOf(1200) /* months */, null),
   MILLENNIUM(true, '*', BigDecimal.valueOf(12000) /* months */, null);
