@@ -50,6 +50,8 @@ public enum TimeUnitRange {
   ISODOW(TimeUnit.ISODOW, null),
   DOY(TimeUnit.DOY, null),
   EPOCH(TimeUnit.EPOCH, null),
+  EPOCH_MILLISECOND(TimeUnit.EPOCH_MILLISECOND, null),
+  EPOCH_SECOND(TimeUnit.EPOCH_SECOND, null),
   DECADE(TimeUnit.DECADE, null),
   CENTURY(TimeUnit.CENTURY, null),
   MILLENNIUM(TimeUnit.MILLENNIUM, null);
