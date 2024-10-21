@@ -32,14 +32,9 @@ KEYS=()
 
 GPG_COMMAND="gpg"
 
-install_gnupg2_and_svn(){
+install_gnupg2(){
   apt update
-  apt install gnupg2 subversion -y
-}
-
-install_git_and_svn(){
-  apt update
-  apt install git subversion -y
+  apt install gnupg2 -y
 }
 
 get_gpg_keys(){
@@ -236,8 +231,6 @@ get_asf_credentials(){
 
 promote_release(){
 
-    git config --global --add safe.directory /src
-
     LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
 
     if [[ ! $LATEST_TAG =~ .+-rc[[:digit:]]+$ ]]; then
@@ -255,7 +248,7 @@ promote_release(){
     fi
 
     get_asf_credentials
-    ./gradlew publishDist -Pasf -PasfSvnUsername=$ASF_USERNAME -PasfSvnPassword=$ASF_PASSWORD -PasfNexusUsername=$ASF_USERNAME -PasfNexusPassword=$ASF_PASSWORD -PasfGitSourceUsername=$ASF_USERNAME -PasfGitSourcePassword=$ASF_PASSWORD -Prc=$RC_NUMBER -Pasf.git.pushRepositoryProvider=GITBOX
+    gradle publishDist -Pasf -PasfSvnUsername=$ASF_USERNAME -PasfSvnPassword=$ASF_PASSWORD -PasfNexusUsername=$ASF_USERNAME -PasfNexusPassword=$ASF_PASSWORD -PasfGitSourceUsername=$ASF_USERNAME -PasfGitSourcePassword=$ASF_PASSWORD -Prc=$RC_NUMBER -Pasf.git.pushRepositoryProvider=GITBOX
 
     # If there is more than 1 release, delete all of them, except for the newest one
     # To do this, we do the following:
@@ -287,30 +280,29 @@ promote_release(){
 
 case $1 in
     dry-run)
-        install_gnupg2_and_svn
+        install_gnupg2
         mount_gpg_keys
         select_gpg_key
         get_dry_run_build_configuration
 
-        ./gradlew prepareVote -PasfTestSvnUsername=test -PasfTestSvnPassword=test -PasfTestNexusUsername=test -PasfTestNexusPassword=test -PasfTestGitSourceUsername=test -PasfTestGitSourcePassword=test -Prc=$RC_NUMBER -PuseGpgCmd -Psigning.gnupg.keyName=$SELECTED_GPG_KEY
+        gradle prepareVote -PasfTestSvnUsername=test -PasfTestSvnPassword=test -PasfTestNexusUsername=test -PasfTestNexusPassword=test -PasfTestGitSourceUsername=test -PasfTestGitSourcePassword=test -Prc=$RC_NUMBER -PuseGpgCmd -Psigning.gnupg.keyName=$SELECTED_GPG_KEY
         ;;
 
     publish-release-for-voting)
-        install_gnupg2_and_svn
+        install_gnupg2
         mount_gpg_keys
         select_gpg_key
         get_build_configuration
         get_asf_credentials
 
-        ./gradlew prepareVote -Pasf -PasfCommitterId=$ASF_USERNAME -PasfSvnUsername=$ASF_USERNAME -PasfSvnPassword=$ASF_PASSWORD -PasfNexusUsername=$ASF_USERNAME -PasfNexusPassword=$ASF_PASSWORD -PasfGitSourceUsername=$ASF_USERNAME -PasfGitSourcePassword=$ASF_PASSWORD -Prc=$RC_NUMBER -PuseGpgCmd -Psigning.gnupg.keyName=$SELECTED_GPG_KEY -Pasf.git.pushRepositoryProvider=GITBOX
+        gradle prepareVote -Pasf -PasfCommitterId=$ASF_USERNAME -PasfSvnUsername=$ASF_USERNAME -PasfSvnPassword=$ASF_PASSWORD -PasfNexusUsername=$ASF_USERNAME -PasfNexusPassword=$ASF_PASSWORD -PasfGitSourceUsername=$ASF_USERNAME -PasfGitSourcePassword=$ASF_PASSWORD -Prc=$RC_NUMBER -PuseGpgCmd -Psigning.gnupg.keyName=$SELECTED_GPG_KEY -Pasf.git.pushRepositoryProvider=GITBOX
         ;;
 
     clean)
-        ./gradlew clean
+        gradle clean
         ;;
 
     promote-release)
-        install_git_and_svn
         promote_release
         ;;
 
