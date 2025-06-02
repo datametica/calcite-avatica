@@ -54,6 +54,7 @@ public enum TimeUnitRange {
   CENTURY(TimeUnit.CENTURY, null),
   EPOCH_MILLISECOND(TimeUnit.EPOCH_MILLISECOND, null),
   EPOCH_SECOND(TimeUnit.EPOCH_SECOND, null),
+  TIMEZONE_HOUR(TimeUnit.TIMEZONE_HOUR, null),
   MILLENNIUM(TimeUnit.MILLENNIUM, null);
 
   public final TimeUnit startUnit;

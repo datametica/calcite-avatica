@@ -62,6 +62,8 @@ public enum TimeUnit {
   EPOCH(false, '*', null, null),
   EPOCH_SECOND(false, '*', null, null),
   EPOCH_MILLISECOND(false, '*', null, null),
+  TIMEZONE_HOUR(false, ' ', BigDecimal.valueOf(DateTimeUtils.MILLIS_PER_DAY),
+      BigDecimal.valueOf(24)),
   DECADE(true, '*', BigDecimal.valueOf(120) /* months */, null),
   CENTURY(true, '*', BigDecimal.valueOf(1200) /* months */, null),
   MILLENNIUM(true, '*', BigDecimal.valueOf(12000) /* months */, null);
